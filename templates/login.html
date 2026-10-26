@@ -1,11 +1,46 @@
-{% extends "base.html" %}
-{% block body %}
-<h1>Admin sign-in</h1>
-{% if err %}<p class="err">{{ err }}</p>{% endif %}
-<form method="post" class="form">
-  <label>Username <input name="username" required></label>
-  <label>Password <input type="password" name="password" required></label>
-  <button class="btn" type="submit">Sign in</button>
-</form>
-<p class="note">Default demo login: admin / Admin@123. Set ADMIN_PASSWORD in production.</p>
-{% endblock %}
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sign in — CUVAS Newsletter</title>
+<link rel="stylesheet" href="/static/style.css"></head>
+<body>
+<div class="login-wrap">
+  <section class="login-left">
+    <img src="/brand/cuvas-logo.png" alt="CUVAS logo" class="logo">
+    <h1>WELCOME</h1>
+    <h2>CUVAS Newsletter</h2>
+    <p>News and Highlights from Across the University — add news with pictures, and every month becomes a new, beautifully designed newsletter PDF.</p>
+    {% if ed %}<p><span class="pill gold">{{ ed.volume_line }}</span></p>{% endif %}
+    <p style="font-size:14px">Add news &nbsp;•&nbsp; Numbered monthly edition &nbsp;•&nbsp; PDF download &nbsp;•&nbsp; Monthly archive</p>
+  </section>
+  <section class="login-right">
+    <div class="login-card">
+      <h2>Sign in</h2>
+      <p class="sub">Admin access only. Sign in to add news and manage editions.</p>
+      {% if err %}<p class="err">{{ err }}</p>{% endif %}
+      <form method="post" class="form" style="box-shadow:none;border:0;padding:0">
+        <label>Username <input name="username" autocomplete="username" required></label>
+        <label>Password
+          <span class="pw-wrap">
+            <input type="password" name="password" id="pw" autocomplete="current-password" required>
+            <button type="button" class="pw-toggle" id="pwToggle">SHOW</button>
+          </span>
+        </label>
+        <label class="remember"><input type="checkbox" name="remember_me" value="1"> Remember me (30 days)</label>
+        <button class="btn" type="submit">Sign in</button>
+      </form>
+      <p class="note">Default demo login: admin / Admin@123. For production, set ADMIN_PASSWORD in Vercel.</p>
+      <a class="back-link" href="/">&larr; Back to newsletter</a>
+    </div>
+  </section>
+</div>
+<script>
+(function(){
+  var b=document.getElementById('pwToggle'), p=document.getElementById('pw');
+  if(b&&p){b.addEventListener('click',function(){
+    if(p.type==='password'){p.type='text';b.textContent='HIDE';}
+    else{p.type='password';b.textContent='SHOW';}
+  });}
+})();
+</script>
+</body></html>

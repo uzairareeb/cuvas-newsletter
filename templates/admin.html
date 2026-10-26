@@ -6,9 +6,18 @@
 {% elif save_err == "missing" %}Title, body aur event date zaroori hain.
 {% elif save_err == "date" %}Event date theek format me dein (YYYY-MM-DD).
 {% else %}Save me masla aaya: {{ save_err }}{% endif %}</p>{% endif %}
-<p class="pill inline">Volume {{ ed.volume }} &bull; Issue {{ ed.issue }} &bull; Version {{ ed.version }} &bull; {{ items|length }} news &bull; {{ cover_count }} cover image(s)</p>
-<p><a class="btn" href="/edition/{{ ed.id }}/pdf">Download PDF (latest)</a>
-<a class="btn ghost" href="/admin/logout">Sign out</a></p>
+
+<div class="kpis">
+  <div class="kpi"><div class="v">{{ items|length }}</div><div class="l">News in this edition</div></div>
+  <div class="kpi"><div class="v">v{{ ed.version }}</div><div class="l">Current version</div></div>
+  <div class="kpi"><div class="v">Vol {{ ed.volume }} / Iss {{ ed.issue }}</div><div class="l">{{ ed.label }}</div></div>
+  <div class="kpi"><div class="v">{{ cover_count }}</div><div class="l">Cover images</div></div>
+</div>
+<div class="actions">
+  <a class="btn" href="/edition/{{ ed.id }}/pdf">Download PDF (latest)</a>
+  <a class="btn ghost" href="/">View public page</a>
+  <a class="btn ghost" href="/admin/logout">Sign out</a>
+</div>
 
 <h2>Add news</h2>
 <form method="post" action="/admin/news" enctype="multipart/form-data" class="form">
@@ -30,10 +39,17 @@ document.getElementById('edate').addEventListener('change', function(){
 </script>
 
 <h2>Cover page images (optional)</h2>
+{% if cover_meta %}
+<div class="img-grid">
+  {% for im in cover_meta %}
+  <a href="/image/cover/{{ im.id }}" target="_blank" rel="noopener"><img src="/image/cover/{{ im.id }}" alt="{{ im.filename }}" loading="lazy"></a>
+  {% endfor %}
+</div>
+{% endif %}
 <form method="post" action="/admin/cover" enctype="multipart/form-data" class="form">
   <label>Cover images (up to 4, PNG/JPG/WebP, max 5 MB each)
     <input type="file" name="cover_images" accept="image/png,image/jpeg,image/webp" multiple></label>
-  <p class="note">Ye images PDF ke pehle page (cover) par collage ki shakal me aengi — jaise university ki campus/building/event photos. Upload karne se pehli wali cover images replace ho jayengi. Agar koi cover image na ho to cover par news ki pehli images se collage ban jayega.</p>
+  <p class="note">Ye images PDF ke pehle page (cover) par collage ki shakal me aengi. Upload karne se pehli wali cover images replace ho jayengi. Agar koi cover image na ho to cover par news ki pehli images se collage ban jayega.</p>
   <button class="btn" type="submit">Save cover images</button>
 </form>
 
@@ -45,15 +61,27 @@ document.getElementById('edate').addEventListener('change', function(){
   <div>
     <h3>{{ it.title }}</h3>
     <div class="date">{{ it.event_day }}, {{ it.event_date_display }} &middot; {{ it.images|length }} image(s)</div>
-    <p>{{ it.body[:300] }}{% if it.body|length > 300 %}...{% endif %}</p>
-    <p><a href="/admin/news/{{ it.id }}/edit">Edit</a>
-    <form method="post" action="/admin/news/{{ it.id }}/delete" style="display:inline" onsubmit="return confirm('Delete this news? Later numbers will shift up.');"><button class="linkbtn" type="submit">Delete</button></form></p>
+    {% if it.images %}
+      <a href="/image/news/{{ it.images[0].id }}" target="_blank" rel="noopener"><img class="img-main" src="/image/news/{{ it.images[0].id }}" alt="{{ it.images[0].filename }}" loading="lazy"></a>
+      {% if it.images|length > 1 %}
+      <div class="img-grid">
+        {% for im in it.images[1:] %}
+        <a href="/image/news/{{ im.id }}" target="_blank" rel="noopener"><img src="/image/news/{{ im.id }}" alt="{{ im.filename }}" loading="lazy"></a>
+        {% endfor %}
+      </div>
+      {% endif %}
+    {% endif %}
+    <p>{{ it.body[:400] }}{% if it.body|length > 400 %}...{% endif %}</p>
+    <div class="actions">
+      <a class="btn small ghost" href="/admin/news/{{ it.id }}/edit">Edit</a>
+      <form method="post" action="/admin/news/{{ it.id }}/delete" data-confirm="This news will be deleted from this edition. Later numbers will shift up. Are you sure?" data-confirm-title="Delete this news?"><button class="linkbtn" type="submit">Delete</button></form>
+    </div>
   </div>
 </article>
 {% endfor %}
 
 <h2>Month</h2>
-<form method="post" action="/admin/close-month" onsubmit="return confirm('Close {{ ed.label }}? It will be saved in the archive and a new edition will start.');">
+<form method="post" action="/admin/close-month" data-confirm="This month will be saved in the archive and a new edition will start. Are you sure?" data-confirm-title="Close this month?">
   <button class="btn ghost" type="submit">Close month &amp; save in archive</button>
 </form>
 <p class="note">Normally this happens automatically when the calendar month changes. Use this button only to close a month early.</p>
@@ -62,5 +90,5 @@ document.getElementById('edate').addEventListener('change', function(){
 <ul>{% for l in logs %}<li>v{{ l.version }} &mdash; {{ l.action }} ({{ l.news_count }} news)</li>{% endfor %}</ul>
 
 <h2>All editions</h2>
-<ul class="archive">{% for e in editions %}<li>{{ e.label }} &mdash; Volume {{ e.volume }}, Issue {{ e.issue }} ({{ e.status }}, v{{ e.version }}) &middot; <a href="/edition/{{ e.id }}/pdf">PDF</a></li>{% endfor %}</ul>
+<ul class="archive">{% for e in editions %}<li>{{ e.label }} &mdash; Volume {{ e.volume }}, Issue {{ e.issue }} ({{ e.status }}, v{{ e.version }}) &middot; <a href="/edition/{{ e.id }}/pdf">PDF</a> &middot; <a href="/edition/{{ e.id }}">View</a></li>{% endfor %}</ul>
 {% endblock %}

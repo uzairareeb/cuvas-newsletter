@@ -17,4 +17,38 @@
 </header>
 <main>{% block body %}{% endblock %}</main>
 <footer class="foot">CUVAS Newsletter &middot; Cholistan University of Veterinary and Animal Sciences, Bahawalpur</footer>
+
+<div class="modal" id="confirmModal" role="dialog" aria-modal="true">
+  <div class="modal-card">
+    <h3 id="confirmTitle">Are you sure?</h3>
+    <p id="confirmText"></p>
+    <div class="modal-actions">
+      <button class="btn ghost" type="button" id="confirmCancel">Cancel</button>
+      <button class="btn" type="button" id="confirmOk">Yes, continue</button>
+    </div>
+  </div>
+</div>
+<script>
+(function(){
+  var modal=document.getElementById('confirmModal');
+  var text=document.getElementById('confirmText');
+  var title=document.getElementById('confirmTitle');
+  var ok=document.getElementById('confirmOk');
+  var cancel=document.getElementById('confirmCancel');
+  var pendingForm=null;
+  function close(){modal.classList.remove('open');pendingForm=null;}
+  cancel.addEventListener('click',close);
+  modal.addEventListener('click',function(e){if(e.target===modal)close();});
+  document.addEventListener('keydown',function(e){if(e.key==='Escape')close();});
+  ok.addEventListener('click',function(){if(pendingForm)pendingForm.submit();});
+  document.querySelectorAll('form[data-confirm]').forEach(function(f){
+    f.addEventListener('submit',function(e){
+      e.preventDefault();pendingForm=f;
+      title.textContent=f.getAttribute('data-confirm-title')||'Are you sure?';
+      text.textContent=f.getAttribute('data-confirm')||'';
+      modal.classList.add('open');
+    });
+  });
+})();
+</script>
 </body></html>

@@ -33,6 +33,7 @@ GOLD = "#c9a227"
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "cuvas-newsletter-dev-key-change-me")
 app.config["MAX_CONTENT_LENGTH"] = 30 * 1024 * 1024  # 30 MB total per form
+app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(days=30)
 
 DATABASE_URL = os.environ.get("DATABASE_URL", "")
 IS_PG = bool(DATABASE_URL)
@@ -423,6 +424,20 @@ def images_meta_for_news(nid):
         if IS_PG:
             out.append(dict(zip(["id", "news_id", "position", "filename",
                                  "mime"], r)))
+        else:
+            out.append(dict(r))
+    return out
+
+
+def cover_images_meta_for_edition(eid):
+    rows = q_all("SELECT id, edition_id, position, filename, mime "
+                 "FROM edition_cover_images WHERE edition_id = ? "
+                 "ORDER BY position ASC, id ASC", (eid,))
+    out = []
+    for r in rows:
+        if IS_PG:
+            out.append(dict(zip(["id", "edition_id", "position",
+                                 "filename", "mime"], r)))
         else:
             out.append(dict(r))
     return out
@@ -907,6 +922,34 @@ def brand_logo():
     return Response(data, mimetype="image/png")
 
 
+@app.route("/image/news/<int:img_id>")
+def serve_news_image(img_id):
+    row = q_one("SELECT mime, data FROM news_images WHERE id = ?",
+                (img_id,))
+    if not row:
+        abort(404)
+    mime = row[0] if IS_PG else row["mime"]
+    data = row[1] if IS_PG else row["data"]
+    if isinstance(data, memoryview):
+        data = bytes(data)
+    return Response(data, mimetype=mime,
+                    headers={"Cache-Control": "public, max-age=86400"})
+
+
+@app.route("/image/cover/<int:img_id>")
+def serve_cover_image(img_id):
+    row = q_one("SELECT mime, data FROM edition_cover_images "
+                "WHERE id = ?", (img_id,))
+    if not row:
+        abort(404)
+    mime = row[0] if IS_PG else row["mime"]
+    data = row[1] if IS_PG else row["data"]
+    if isinstance(data, memoryview):
+        data = bytes(data)
+    return Response(data, mimetype=mime,
+                    headers={"Cache-Control": "public, max-age=86400"})
+
+
 @app.route("/")
 def home():
     ed = get_or_create_current_edition()
@@ -952,9 +995,16 @@ def admin_login():
         if (request.form.get("username") == ADMIN_USER and
                 request.form.get("password") == ADMIN_PASSWORD):
             session["admin"] = True
+            # Remember me is functional: permanent session (30 days)
+            # when ticked, browser-session only when not ticked.
+            session.permanent = bool(request.form.get("remember_me"))
             return redirect(url_for("admin_home"))
         err = "Wrong username or password."
-    return render_template("login.html", err=err)
+    try:
+        ed = get_or_create_current_edition()
+    except Exception:
+        ed = None
+    return render_template("login.html", err=err, ed=ed)
 
 
 @app.route("/admin/logout")
@@ -971,10 +1021,13 @@ def admin_home():
     items = news_for_edition(ed["id"], light=True)
     save_err = request.args.get("error", "")
     cover_count = 0
+    cover_meta = []
     try:
-        cover_count = len(cover_images_for_edition(ed["id"]))
+        cover_meta = cover_images_meta_for_edition(ed["id"])
+        cover_count = len(cover_meta)
     except Exception:
         cover_count = 0
+        cover_meta = []
     logs = q_all("SELECT * FROM version_log WHERE edition_id = ? "
                  "ORDER BY id DESC LIMIT 20", (ed["id"],))
     log_list = []
@@ -987,7 +1040,7 @@ def admin_home():
             log_list.append(dict(r))
     return render_template("admin.html", ed=ed, items=items, logs=log_list,
                            editions=list_editions(), save_err=save_err,
-                           cover_count=cover_count)
+                           cover_count=cover_count, cover_meta=cover_meta)
 
 
 @app.route("/admin/news", methods=["POST"])

@@ -1,13 +1,22 @@
 {% extends "base.html" %}
 {% block body %}
 <h1>Edit news &mdash; {{ ed.label }}</h1>
+{% if item.images %}
+<div class="img-grid">
+  {% for im in item.images %}
+  <a href="/image/news/{{ im.id }}" target="_blank" rel="noopener"><img src="/image/news/{{ im.id }}" alt="{{ im.filename }}" loading="lazy"></a>
+  {% endfor %}
+</div>
+{% endif %}
 <form method="post" class="form">
   <label>News title * <input name="title" value="{{ item.title }}" required></label>
   <label>Body text * <textarea name="body" rows="6" required>{{ item.body }}</textarea></label>
   <label>Event date * <input type="date" name="event_date" value="{{ item.event_date }}" required></label>
   <label>Day of the event <input name="event_day" value="{{ item.event_day }}"></label>
-  <button class="btn" type="submit">Save changes</button>
-  <a class="btn ghost" href="/admin">Cancel</a>
+  <div class="actions">
+    <button class="btn" type="submit">Save changes</button>
+    <a class="btn ghost" href="/admin">Cancel</a>
+  </div>
 </form>
-<p class="note">Images cannot be replaced in this first version; delete and re-add the news to change its images. Its number stays in place if you only edit text.</p>
+<p class="note">Images cannot be replaced in this version; delete and re-add the news to change its images. Its number stays in place if you only edit text.</p>
 {% endblock %}

@@ -5,8 +5,10 @@
   <h1>Newsletter &mdash; {{ ed.label }}</h1>
   <p class="sub">News and Highlights from Across the University</p>
   <p>Version {{ ed.version }} &middot; {{ items|length }} news item(s) in this edition</p>
-  <a class="btn" href="/edition/{{ ed.id }}/pdf">Download PDF (latest version)</a>
-  {% if items %}<a class="btn ghost" href="#news">Read below</a>{% endif %}
+  <div class="actions">
+    <a class="btn" href="/edition/{{ ed.id }}/pdf">Download PDF (latest version)</a>
+    {% if items %}<a class="btn ghost" href="#news">Read below</a>{% endif %}
+  </div>
 </section>
 
 <h2 id="news">In this edition</h2>
@@ -19,11 +21,17 @@
   <div>
     <h3>{{ it.title }}</h3>
     <div class="date">{{ it.event_day }}, {{ it.event_date_display }}</div>
+    {% if it.images %}
+      <a href="/image/news/{{ it.images[0].id }}" target="_blank" rel="noopener"><img class="img-main" src="/image/news/{{ it.images[0].id }}" alt="{{ it.images[0].filename }}" loading="lazy"></a>
+      {% if it.images|length > 1 %}
+      <div class="img-grid">
+        {% for im in it.images[1:] %}
+        <a href="/image/news/{{ im.id }}" target="_blank" rel="noopener"><img src="/image/news/{{ im.id }}" alt="{{ im.filename }}" loading="lazy"></a>
+        {% endfor %}
+      </div>
+      {% endif %}
+    {% endif %}
     <p>{{ it.body }}</p>
-    {% if it.images %}<div class="imgs">
-      {% for im in it.images %}
-      <span class="imgnote">Image {{ loop.index }} attached ({{ im.filename }}) &mdash; placed in the PDF</span>
-      {% endfor %}</div>{% endif %}
   </div>
 </article>
 {% endfor %}

@@ -32,6 +32,15 @@ here are CUVAS's own: official CUVAS logo on top, CUVAS indigo
 - **Cover images:** admin can upload up to 4 cover images per
   edition (Admin → Cover page images). If none are set, the cover
   collage falls back to the first images of the news items.
+- **Web UI (v3, 2026-10-26):** split-screen login (indigo gradient
+  welcome panel + white sign-in card, CUVAS logo, Show password,
+  functional Remember me for 30 days; deliberately NO sign-up or
+  forgot-password links, as no such flows exist), cards with
+  fade-up/hover animations, styled confirmation popups for Delete
+  and Close Month (no browser confirm dialogs), and news/cover
+  photos shown properly on the public, edition and admin pages
+  via `/image/news/<id>` and `/image/cover/<id>` (click a photo to
+  open it full-size), instead of filename text only.
 - **Save robustness:** web pages and the version counter never load
   photo blobs (filenames/counts only); only PDF generation loads
   them. A failed Postgres query rolls back instead of poisoning

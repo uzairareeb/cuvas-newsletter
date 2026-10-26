@@ -4,8 +4,10 @@
   <div class="pill">Volume {{ ed.volume }} &bull; Issue {{ ed.issue }} &bull; {{ ed.label }} &bull; {{ ed.status }}</div>
   <h1>Newsletter &mdash; {{ ed.label }}</h1>
   <p>Version {{ ed.version }} &middot; {{ items|length }} news item(s)</p>
-  <a class="btn" href="/edition/{{ ed.id }}/pdf">Download PDF</a>
-  <a class="btn ghost" href="/">Back to current edition</a>
+  <div class="actions">
+    <a class="btn" href="/edition/{{ ed.id }}/pdf">Download PDF</a>
+    <a class="btn ghost" href="/">Back to current edition</a>
+  </div>
 </section>
 {% for it in items %}
 <article class="news">
@@ -13,6 +15,16 @@
   <div>
     <h3>{{ it.title }}</h3>
     <div class="date">{{ it.event_day }}, {{ it.event_date_display }}</div>
+    {% if it.images %}
+      <a href="/image/news/{{ it.images[0].id }}" target="_blank" rel="noopener"><img class="img-main" src="/image/news/{{ it.images[0].id }}" alt="{{ it.images[0].filename }}" loading="lazy"></a>
+      {% if it.images|length > 1 %}
+      <div class="img-grid">
+        {% for im in it.images[1:] %}
+        <a href="/image/news/{{ im.id }}" target="_blank" rel="noopener"><img src="/image/news/{{ im.id }}" alt="{{ im.filename }}" loading="lazy"></a>
+        {% endfor %}
+      </div>
+      {% endif %}
+    {% endif %}
     <p>{{ it.body }}</p>
   </div>
 </article>
