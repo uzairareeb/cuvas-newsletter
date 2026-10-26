@@ -167,3 +167,27 @@ Local data uses SQLite (`cuvas_newsletter.db` in the project folder).
   is_draft, image caption/is_cover, edition stage) are added by
   migration; existing rows and tables are never dropped, and old
   news defaults to University News with its first photo as cover.
+
+## V6 — Reference dashboard layout (2026-10-26)
+- **Three-part layout from the user's reference screenshot:**
+  deep-navy left sidebar (logo, Uzair bin Zahid / Junior Clerk
+  profile from the reference, Dashboard, Add News/Event, Preview,
+  Export PDF, Edition Archive, expandable Settings linking to real
+  dashboard sections), Studio header (Create · Manage · Publish,
+  current edition, recent-activity bell, profile), main dashboard,
+  and a right sidebar.
+- **Main dashboard:** Newsletter Dashboard heading, edition
+  progress card, 4 summary cards with real sub-metrics (this week
+  vs last week, edition label, editions total), 4 quick-action
+  cards, and a recent-news table in the reference column order
+  (#, Image, Title, Category, Event Date, Added On, Status,
+  Actions) with search, category filter, month selector, sorting
+  and 6-per-page pagination.
+- **Right sidebar:** Current Edition Preview using the real cover
+  story / cover image (a branded placeholder card only when no
+  photo exists — never a stock photo), Open Preview, Latest
+  Edition with real last-updated time (PKT), Edition Archive, and
+  the reference quote panel.
+- **No sample numbers:** the reference screenshot's 18 / 6 / 14-20 /
+  70% figures are NOT used; every card, progress value and count
+  is computed from the live database.

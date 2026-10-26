@@ -4,24 +4,30 @@
   <aside class="sidebar" aria-label="Admin navigation">
     <div class="logo-band"><img src="/brand/cuvas-logo.png" alt="CUVAS logo"></div>
     <div class="profile">
-      <div class="avatar">A</div>
+      <div class="avatar">UZ</div>
       <div>
-        <div class="pname">Administrator</div>
-        <div class="prole">Newsletter Admin</div>
+        <div class="pname">Uzair bin Zahid</div>
+        <div class="prole">Junior Clerk</div>
       </div>
     </div>
     <nav class="side-nav">
-      <a href="/admin">Dashboard</a>
-      <a href="/admin#add-news">Add news</a>
-      <a href="/admin#cover">Cover images</a>
-      <a href="/admin#news-list">News list</a>
-      <a href="/admin#month">Close month</a>
-      <a href="/admin#versions">Version history</a>
-      <a href="/admin#editions">All editions</a>
-      <a href="/" class="purple">View public page</a>
+      <a href="/admin" class="active">⌂ &nbsp;Dashboard</a>
+      <a href="/admin#add-news">＋ &nbsp;Add News / Event</a>
+      {% if ed %}<a href="/edition/{{ ed.id }}/preview" target="_blank" rel="noopener">◉ &nbsp;Preview Newsletter</a>
+      <a href="/edition/{{ ed.id }}/pdf">⬇ &nbsp;Export PDF</a>{% endif %}
+      <a href="/admin#editions">▤ &nbsp;Edition Archive</a>
+      <details class="side-details">
+        <summary>⚙ &nbsp;Settings</summary>
+        <div class="side-sub">
+          <a href="/admin#stage">Edition status</a>
+          <a href="/admin#cover">Cover images</a>
+          <a href="/admin#month">Close month</a>
+          <a href="/admin/logout">Sign out</a>
+        </div>
+      </details>
     </nav>
     <div class="side-foot">
-      <a href="/admin/logout">Sign out</a>
+      <p style="font-size:12px;opacity:.75;line-height:1.5">Knowledge &nbsp;|&nbsp; Research &nbsp;|&nbsp; Service<br>for a Healthier Tomorrow</p>
       {% if ed %}<p style="font-size:13px;opacity:.85">{{ ed.volume_line }}<br>Version {{ ed.version }} &middot; {{ ed.stage }}</p>{% endif %}
     </div>
   </aside>

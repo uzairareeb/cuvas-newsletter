@@ -8,25 +8,26 @@
 <body>
 <header class="top">
   <img src="/brand/cuvas-logo.png" alt="CUVAS logo" class="logo">
-  <div>
+  <div class="top-identity">
     <div class="uni">Cholistan University of Veterinary and Animal Sciences, Bahawalpur</div>
     <div class="brand">CUVAS Newsletter Studio</div>
+    <div class="tagline">Create &nbsp;·&nbsp; Manage &nbsp;·&nbsp; Publish</div>
   </div>
   <nav>
-    {% if ed %}<span class="edition-pill">{{ ed.volume_line }}</span>{% endif %}
+    {% if ed %}<span class="edition-pill">{{ ed.label }}<span class="edition-sub">Current Edition</span></span>{% endif %}
     <a href="/">Current edition</a>
     <a href="/admin">Admin</a>
     {% if session.admin %}
     <span class="bell">
-      <button type="button" aria-label="Notifications" onclick="document.getElementById('bellDrop').classList.toggle('open')">🔔</button>
+      <button type="button" aria-label="Recent activity" onclick="document.getElementById('bellDrop').classList.toggle('open')">🔔{% if logs %}<span class="bell-badge">{{ logs[:3]|length }}</span>{% endif %}</button>
       <span class="bell-drop" id="bellDrop">
         <strong>Recent activity</strong>
         {% if logs %}
-        <ul style="padding:0">{% for l in logs[:5] %}<li>v{{ l.version }} — {{ l.action }} ({{ l.news_count }} news)</li>{% endfor %}</ul>
+        <ul style="padding:0">{% for l in logs[:3] %}<li>v{{ l.version }} — {{ l.action }} ({{ l.news_count }} news)</li>{% endfor %}</ul>
         {% else %}<p style="font-size:13px">No recent activity in this edition.</p>{% endif %}
       </span>
     </span>
-    <span class="profile-chip"><span class="avatar">A</span> Administrator <a href="/admin/logout">Sign out</a></span>
+    <span class="profile-chip"><span class="avatar">UZ</span><span class="profile-text"><strong>Uzair bin Zahid</strong><span>Junior Clerk</span></span> <a href="/admin/logout">Sign out</a></span>
     {% endif %}
   </nav>
 </header>

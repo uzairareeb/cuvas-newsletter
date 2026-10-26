@@ -19,6 +19,8 @@ import os
 import sqlite3
 from datetime import date, datetime, timedelta, timezone
 
+from urllib.parse import urlencode
+
 from flask import (Flask, abort, redirect, render_template, request,
                    Response, session, url_for)
 
@@ -1359,12 +1361,75 @@ def admin_home():
             pass
     published_count = len([it for it in all_items if not it["is_draft"]])
     draft_count = len([it for it in all_items if it["is_draft"]])
+    # Items added last week (7-14 days ago) — real comparison for the card.
+    two_weeks_ago = datetime.now(timezone.utc) - timedelta(days=14)
+    last_week_count = 0
+    for row in q_all("SELECT created_at FROM news"):
+        raw = row[0] if IS_PG else row["created_at"]
+        try:
+            dt = datetime.fromisoformat(str(raw).replace("Z", "+00:00"))
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=timezone.utc)
+            if two_weeks_ago <= dt < week_ago:
+                last_week_count += 1
+        except Exception:
+            pass
+    # Last updated: latest news or version-log timestamp, shown in PKT.
+    last_updated_display = "—"
+    latest_dt = None
+    for row in q_all("SELECT created_at FROM news WHERE edition_id = ?",
+                     (ed["id"],)):
+        raw = row[0] if IS_PG else row["created_at"]
+        try:
+            dt = datetime.fromisoformat(str(raw).replace("Z", "+00:00"))
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=timezone.utc)
+            if latest_dt is None or dt > latest_dt:
+                latest_dt = dt
+        except Exception:
+            pass
+    for lg in log_list:
+        try:
+            dt = datetime.fromisoformat(str(lg["created_at"]).replace("Z", "+00:00"))
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=timezone.utc)
+            if latest_dt is None or dt > latest_dt:
+                latest_dt = dt
+        except Exception:
+            pass
+    if latest_dt is not None:
+        pkt = latest_dt + timedelta(hours=5)
+        last_updated_display = pkt.strftime("%d %b %Y, %I:%M %p")
+    # Right-sidebar cover: cover story image, else edition cover image.
+    cover_img_url = None
+    pub_items = [it for it in all_items if not it["is_draft"]]
+    if pub_items and pub_items[0]["images"]:
+        cov = None
+        for im in pub_items[0]["images"]:
+            if im.get("is_cover"):
+                cov = im
+                break
+        cov = cov or pub_items[0]["images"][0]
+        cover_img_url = "/image/news/%s" % cov["id"]
+    elif cover_meta:
+        cover_img_url = "/image/cover/%s" % cover_meta[0]["id"]
+    # Pagination for the recent table (6 per page, like the reference).
+    total_filtered = len(items)
+    per_page = 6
+    total_pages = max(1, (total_filtered + per_page - 1) // per_page)
+    page = request.args.get("page", type=int) or 1
+    page = max(1, min(page, total_pages))
+    page_items = items[(page - 1) * per_page:page * per_page]
+    showing_start = (page - 1) * per_page + 1 if total_filtered else 0
+    showing_end = min(page * per_page, total_filtered)
+    filter_qs = urlencode({"edition": ed["id"], "q": q, "category": cat,
+                           "sort": sort})
     # Monthly publication progress: 3 honest readiness steps.
     steps = [("News added", published_count > 0),
              ("Cover image set", cover_count > 0),
              ("Edition versioned (PDF ready)", ed["version"] > 0)]
     progress = int(100 * sum(1 for _, ok in steps if ok) / len(steps))
-    return render_template("admin.html", ed=ed, items=items,
+    return render_template("admin.html", ed=ed, items=page_items,
                            all_items=all_items, logs=log_list,
                            editions=list_editions(), save_err=save_err,
                            msg=msg, cover_count=cover_count,
@@ -1375,7 +1440,15 @@ def admin_home():
                            week_count=week_count,
                            published_count=published_count,
                            draft_count=draft_count,
-                           progress=progress, steps=steps)
+                           progress=progress, steps=steps,
+                           progress_done=sum(1 for _, ok in steps if ok),
+                           last_week_count=last_week_count,
+                           last_updated_display=last_updated_display,
+                           cover_img_url=cover_img_url,
+                           page=page, total_pages=total_pages,
+                           total_filtered=total_filtered,
+                           showing_start=showing_start,
+                           showing_end=showing_end, filter_qs=filter_qs)
 
 
 @app.route("/admin/news", methods=["POST"])

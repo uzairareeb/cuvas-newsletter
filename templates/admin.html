@@ -1,7 +1,17 @@
 {% extends "admin_base.html" %}
 {% block admin_body %}
-<h1>Newsletter Dashboard</h1>
-<p class="sub">CUVAS Newsletter Studio &mdash; {{ ed.label }} &middot; {{ ed.volume_line }}</p>
+<div class="dashboard-layout"><div class="dash-main">
+<div class="dash-head">
+  <div><p class="note" style="margin:0">Home</p>
+  <h1 style="margin-top:2px">Newsletter Dashboard</h1>
+  <p class="sub" style="margin-top:0">Manage university news, events and monthly editions in one place.</p></div>
+  <div class="progress-card">
+    <p style="margin:0;font-weight:700">{{ ed.label }} Edition Progress</p>
+    <div class="progress" role="progressbar" aria-valuenow="{{ progress }}" aria-valuemin="0" aria-valuemax="100"><i style="width:{{ progress }}%"></i></div>
+    <p class="note" style="margin:0">{{ progress_done }} of 3 steps &middot; {{ progress }}%</p>
+    <p class="note" style="margin:0">{% for name, ok in steps %}{% if ok %}✓{% else %}○{% endif %} {{ name }}{% if not loop.last %} · {% endif %}{% endfor %}</p>
+  </div>
+</div>
 {% if msg == "added" %}<p class="ok">News added to the current edition. The PDF version has been updated.</p>
 {% elif msg == "draft" %}<p class="ok">Draft saved. It is not in the public edition or PDF yet — publish it from the table below when ready.</p>
 {% elif msg == "published" %}<p class="ok">Draft published to the current edition.</p>{% endif %}
@@ -12,22 +22,21 @@
 {% else %}Save me masla aaya: {{ save_err }}{% endif %}</p>{% endif %}
 
 <div class="kpis">
-  <div class="kpi"><div class="v">{{ total_all }}</div><div class="l">Total news / events (all editions)</div></div>
-  <div class="kpi"><div class="v">{{ week_count }}</div><div class="l">Items added this week</div></div>
-  <div class="kpi"><div class="v">{{ ed.stage }}</div><div class="l">Current edition status &middot; v{{ ed.version }}</div></div>
-  <div class="kpi"><div class="v">{{ archived_count }}</div><div class="l">Published / archived editions</div></div>
+  <div class="kpi"><div class="kpi-icon blue">▤</div><div class="v">{{ total_all }}</div><div class="l">Total News &amp; Events</div><div class="kpi-sub">↑ {{ week_count }} this week</div></div>
+  <div class="kpi"><div class="kpi-icon purple">◷</div><div class="v">{{ week_count }}</div><div class="l">Added This Week</div><div class="kpi-sub">↑ {{ last_week_count }} from last week</div></div>
+  <div class="kpi"><div class="kpi-icon teal">▭</div><div class="v">{{ ed.stage }}</div><div class="l">Current Edition</div><div class="kpi-sub">{{ ed.label }}</div></div>
+  <div class="kpi"><div class="kpi-icon blue">▦</div><div class="v">{{ archived_count }}</div><div class="l">Published Editions</div><div class="kpi-sub">{{ editions|length }} edition(s) total</div></div>
 </div>
 
-<section class="section-card">
-  <h2 class="section-title"><span class="dot"></span> Monthly publication progress — {{ progress }}%</h2>
-  <div class="progress" role="progressbar" aria-valuenow="{{ progress }}" aria-valuemin="0" aria-valuemax="100"><i style="width:{{ progress }}%"></i></div>
-  <p class="note">{% for name, ok in steps %}{% if ok %}✓{% else %}○{% endif %} {{ name }}{% if not loop.last %} &nbsp;·&nbsp; {% endif %}{% endfor %}</p>
-  <div class="actions">
-    <button class="btn" type="button" onclick="openDrawer()">+ Add News / Event</button>
-    <a class="btn purple" href="/edition/{{ ed.id }}/preview" target="_blank" rel="noopener">Preview Newsletter</a>
-    <a class="btn blue2" href="/edition/{{ ed.id }}/pdf">Export Newsletter (PDF)</a>
-    <a class="btn ghost" href="#editions">Edition Archive</a>
-  </div>
+<div class="quick-grid">
+  <button class="quick-card blue" type="button" onclick="openDrawer()"><span class="quick-icon">＋</span><strong>Add News / Event</strong><span class="note">Enter details, date, photos and category.</span><span class="quick-arrow">→</span></button>
+  <a class="quick-card purple" href="/edition/{{ ed.id }}/preview" target="_blank" rel="noopener"><span class="quick-icon">◉</span><strong>Preview Newsletter</strong><span class="note">Review the automatically arranged edition.</span><span class="quick-arrow">→</span></a>
+  <a class="quick-card teal" href="/edition/{{ ed.id }}/pdf"><span class="quick-icon">⬇</span><strong>Export Newsletter</strong><span class="note">Download the current monthly edition.</span><span class="quick-arrow">→</span></a>
+  <a class="quick-card purple2" href="#editions"><span class="quick-icon">▤</span><strong>Edition Archive</strong><span class="note">Browse and download previous months.</span><span class="quick-arrow">→</span></a>
+</div>
+
+<section class="section-card" id="stage">
+  <h2 class="section-title"><span class="dot"></span> Edition status</h2>
   {% if ed.status != "archived" %}
   <form method="post" action="/admin/edition-stage" class="filters" style="margin-top:14px">
     <label>Edition status
@@ -81,16 +90,16 @@
   {% else %}
   <div class="table-wrap">
   <table class="data" aria-label="Recent news and events">
-    <thead><tr><th>Photo</th><th>Title</th><th>Category</th><th>Event date</th><th>Date added</th><th>Serial</th><th>Status</th><th>Actions</th></tr></thead>
+    <thead><tr><th>#</th><th>Image</th><th>Title</th><th>Category</th><th>Event Date</th><th>Added On</th><th>Status</th><th>Actions</th></tr></thead>
     <tbody>
     {% for it in items %}
     <tr>
+      <td>{% if it.number %}{{ "%02d"|format(it.number) }}{% else %}—{% endif %}</td>
       <td>{% if it.images %}<a href="/image/news/{{ it.images[0].id }}" target="_blank" rel="noopener"><img class="thumb" src="/image/news/{{ it.images[0].id }}" alt="" loading="lazy"></a>{% else %}<span class="thumb-none">No photo</span>{% endif %}</td>
       <td><strong>{{ it.title }}</strong><br><span class="note">Record ID {{ it.id }}{% if it.summary %} · {{ it.summary[:80] }}{% endif %}</span></td>
       <td><span class="pill purple">{{ it.category }}</span></td>
       <td>{{ it.event_day }}, {{ it.event_date_display }}</td>
       <td>{{ it.created_at[:10] }}</td>
-      <td>{% if it.number %}{{ "%02d"|format(it.number) }}{% else %}—{% endif %}</td>
       <td>{% if it.is_draft %}<span class="pill grey">Draft</span>{% else %}<span class="pill green">Published</span>{% endif %}</td>
       <td>
         <div class="actions">
@@ -106,6 +115,18 @@
     </tbody>
   </table>
   </div>
+  {% endif %}
+  {% if total_pages > 1 %}
+  <div class="pagination">
+    <span class="note">Showing {{ showing_start }} - {{ showing_end }} of {{ total_filtered }} news/events</span>
+    <span>
+      {% if page > 1 %}<a class="page-btn" href="/admin?{{ filter_qs }}&amp;page={{ page - 1 }}">‹</a>{% endif %}
+      {% for pg in range(1, total_pages + 1) %}<a class="page-btn {% if pg == page %}active{% endif %}" href="/admin?{{ filter_qs }}&amp;page={{ pg }}">{{ pg }}</a>{% endfor %}
+      {% if page < total_pages %}<a class="page-btn" href="/admin?{{ filter_qs }}&amp;page={{ page + 1 }}">›</a>{% endif %}
+    </span>
+  </div>
+  {% else %}
+  <p class="note">Showing {{ showing_start }} - {{ showing_end }} of {{ total_filtered }} news/events</p>
   {% endif %}
   <p class="note">Serial number = visible number in the newsletter (published items only, in addition order). Record ID = the item's permanent database ID and never changes, even if serials shift after a deletion.</p>
 </section>
@@ -144,6 +165,39 @@
   <h2 class="section-title"><span class="dot"></span> All editions — Monthly archive</h2>
   <ul class="archive">{% for e in editions %}<li>{{ e.label }} &mdash; Volume {{ e.volume }}, Issue {{ e.issue }} (<span class="pill {% if e.status == 'archived' %}grey{% else %}purple{% endif %}">{{ e.status }}{% if e.stage and e.stage != 'Draft' %} / {{ e.stage }}{% endif %}</span>, v{{ e.version }}) &middot; <a href="/edition/{{ e.id }}/pdf">PDF</a> &middot; <a href="/edition/{{ e.id }}/preview" target="_blank" rel="noopener">Preview</a> &middot; <a href="/edition/{{ e.id }}">View</a></li>{% endfor %}</ul>
 </section>
+
+</div>
+<aside class="rightbar" aria-label="Edition preview and archive">
+  <section class="section-card">
+    <div class="section-head"><h2 class="section-title" style="font-size:16px">◉ Current Edition Preview</h2><a href="/edition/{{ ed.id }}/preview" target="_blank" rel="noopener" class="note">View All</a></div>
+    {% if cover_img_url %}
+    <a href="/edition/{{ ed.id }}/preview" target="_blank" rel="noopener"><img class="preview-cover" src="{{ cover_img_url }}" alt="Current edition cover"></a>
+    {% else %}
+    <div class="preview-cover placeholder"><img src="/brand/cuvas-logo.png" alt="CUVAS logo" style="height:44px;background:#fff;padding:4px;border-radius:8px"><strong style="color:#fff">CUVAS CHRONICLE</strong><span style="color:rgba(255,255,255,.85);font-size:13px">{{ ed.volume_line }}</span></div>
+    {% endif %}
+    <p class="note" style="text-align:center;margin:8px 0 0">CUVAS Chronicle &middot; {{ ed.label }}</p>
+    <a class="btn purple" style="width:100%;text-align:center;margin-top:10px" href="/edition/{{ ed.id }}/preview" target="_blank" rel="noopener">Open Preview</a>
+  </section>
+  <section class="section-card">
+    <h2 class="section-title" style="font-size:16px">◷ Latest Edition</h2>
+    <p style="font-size:20px;font-weight:800;color:var(--blue);margin:0">{{ ed.label }} <span class="pill {% if ed.status == 'archived' %}grey{% else %}purple{% endif %}" style="float:right">{{ ed.stage }}</span></p>
+    <p class="note">Last updated: {{ last_updated_display }}</p>
+    <a href="#stage">Manage Edition →</a>
+  </section>
+  <section class="section-card">
+    <div class="section-head"><h2 class="section-title" style="font-size:16px">▤ Edition Archive</h2><a href="#editions" class="note">View All</a></div>
+    <ul class="archive">
+    {% for e in editions %}
+      <li><a href="/edition/{{ e.id }}">{{ e.label }}</a> <span class="pill {% if e.status == 'archived' %}grey{% else %}purple{% endif %}" style="float:right">{{ e.status }}</span><br><span class="note">Volume {{ e.volume }}, Issue {{ e.issue }} &middot; v{{ e.version }} &middot; <a href="/edition/{{ e.id }}/pdf">PDF</a></span></li>
+    {% endfor %}
+    </ul>
+  </section>
+  <section class="section-card quote-card">
+    <p style="font-size:28px;color:var(--purple);margin:0;line-height:1">“</p>
+    <p style="font-style:italic;color:var(--blue);margin:4px 0">Better information.<br>A stronger university.</p>
+  </section>
+</aside>
+</div>
 
 <div class="drawer-overlay" id="drawerOverlay" onclick="closeDrawer()"></div>
 <aside class="drawer" id="newsDrawer" role="dialog" aria-modal="true" aria-label="Add news or event">
