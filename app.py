@@ -79,11 +79,26 @@ def get_conn():
     return conn
 
 
+def _rollback(conn):
+    # A failed Postgres query leaves the shared connection in an
+    # aborted-transaction state; without a rollback every later query
+    # on that serverless instance fails too (a likely cause of the
+    # "first save errored, then it worked" report).
+    try:
+        conn.rollback()
+    except Exception:
+        pass
+
+
 def q_one(query, params=()):
     conn = get_conn()
     cur = conn.cursor()
-    cur.execute(_sql(query), params)
-    row = cur.fetchone()
+    try:
+        cur.execute(_sql(query), params)
+        row = cur.fetchone()
+    except Exception:
+        _rollback(conn)
+        raise
     if not IS_PG:
         conn.close()
     return row
@@ -92,8 +107,12 @@ def q_one(query, params=()):
 def q_all(query, params=()):
     conn = get_conn()
     cur = conn.cursor()
-    cur.execute(_sql(query), params)
-    rows = cur.fetchall()
+    try:
+        cur.execute(_sql(query), params)
+        rows = cur.fetchall()
+    except Exception:
+        _rollback(conn)
+        raise
     if not IS_PG:
         conn.close()
     return rows
@@ -102,8 +121,12 @@ def q_all(query, params=()):
 def q_exec(query, params=()):
     conn = get_conn()
     cur = conn.cursor()
-    cur.execute(_sql(query), params)
-    conn.commit()
+    try:
+        cur.execute(_sql(query), params)
+        conn.commit()
+    except Exception:
+        _rollback(conn)
+        raise
     last = None
     try:
         last = cur.lastrowid
@@ -112,6 +135,26 @@ def q_exec(query, params=()):
     if not IS_PG:
         conn.close()
     return last
+
+
+def q_insert_returning_id(query, params=()):
+    """Insert and return the new row id without a second lookup query.
+    Postgres: query must end with RETURNING id. SQLite: lastrowid."""
+    conn = get_conn()
+    cur = conn.cursor()
+    try:
+        cur.execute(_sql(query), params)
+        if IS_PG:
+            new_id = cur.fetchone()[0]
+        else:
+            new_id = cur.lastrowid
+        conn.commit()
+    except Exception:
+        _rollback(conn)
+        raise
+    if not IS_PG:
+        conn.close()
+    return new_id
 
 
 def init_db():
@@ -160,6 +203,16 @@ def init_db():
                 created_at TEXT NOT NULL
             )
         """)
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS edition_cover_images (
+                id SERIAL PRIMARY KEY,
+                edition_id INTEGER NOT NULL,
+                position INTEGER NOT NULL,
+                filename TEXT NOT NULL,
+                mime TEXT NOT NULL,
+                data BYTEA NOT NULL
+            )
+        """)
     else:
         cur.execute("""
             CREATE TABLE IF NOT EXISTS editions (
@@ -201,6 +254,16 @@ def init_db():
                 action TEXT NOT NULL,
                 news_count INTEGER NOT NULL,
                 created_at TEXT NOT NULL
+            )
+        """)
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS edition_cover_images (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                edition_id INTEGER NOT NULL,
+                position INTEGER NOT NULL,
+                filename TEXT NOT NULL,
+                mime TEXT NOT NULL,
+                data BLOB NOT NULL
             )
         """)
     conn.commit()
@@ -317,7 +380,19 @@ def list_editions():
     return [ed_dict(r) for r in rows]
 
 
-def news_for_edition(eid):
+def fmt_event_date(s):
+    try:
+        return parse_event_date(s).strftime("%d %B %Y")
+    except Exception:
+        return s
+
+
+def news_for_edition(eid, light=False):
+    """light=True loads filenames/counts only, NOT image bytes.
+    Web pages must use light: loading every photo blob on every page
+    view (and on every save, via the old version counter) made the
+    first live save slow enough to time out on a cold Neon connection.
+    Only PDF generation uses light=False."""
     rows = q_all("SELECT * FROM news WHERE edition_id = ? "
                  "ORDER BY created_at ASC, id ASC", (eid,))
     out = []
@@ -328,10 +403,44 @@ def news_for_edition(eid):
             d = dict(zip(keys, r))
         else:
             d = dict(r)
-        d["images"] = images_for_news(d["id"])
+        d["event_date_display"] = fmt_event_date(d["event_date"])
+        if light:
+            d["images"] = images_meta_for_news(d["id"])
+        else:
+            d["images"] = images_for_news(d["id"])
         out.append(d)
     for i, d in enumerate(out, start=1):
         d["number"] = i
+    return out
+
+
+def images_meta_for_news(nid):
+    rows = q_all("SELECT id, news_id, position, filename, mime "
+                 "FROM news_images WHERE news_id = ? "
+                 "ORDER BY position ASC, id ASC", (nid,))
+    out = []
+    for r in rows:
+        if IS_PG:
+            out.append(dict(zip(["id", "news_id", "position", "filename",
+                                 "mime"], r)))
+        else:
+            out.append(dict(r))
+    return out
+
+
+def cover_images_for_edition(eid):
+    rows = q_all("SELECT * FROM edition_cover_images WHERE edition_id = ? "
+                 "ORDER BY position ASC, id ASC", (eid,))
+    out = []
+    for r in rows:
+        if IS_PG:
+            d = dict(zip(["id", "edition_id", "position", "filename",
+                          "mime", "data"], r))
+            if isinstance(d["data"], memoryview):
+                d["data"] = bytes(d["data"])
+        else:
+            d = dict(r)
+        out.append(d)
     return out
 
 
@@ -353,7 +462,9 @@ def images_for_news(nid):
 
 
 def bump_version(eid, action):
-    count = len(news_for_edition(eid))
+    row_c = q_one("SELECT COUNT(*) FROM news WHERE edition_id = ?",
+                  (eid,))
+    count = row_c[0] if IS_PG else row_c[0]
     row = q_one("SELECT version FROM editions WHERE id = ?", (eid,))
     ver = (row[0] if IS_PG else row["version"]) + 1
     q_exec("UPDATE editions SET version = ? WHERE id = ?", (ver, eid))
@@ -440,7 +551,7 @@ def logo_image_bytes(max_w=420):
 
 
 # ---------------------------------------------------------------- PDF
-def build_pdf(ed, items):
+def build_pdf(ed, items, covers=None):
     from reportlab.lib import colors
     from reportlab.lib.enums import TA_CENTER, TA_JUSTIFY, TA_LEFT
     from reportlab.lib.pagesizes import A4
@@ -448,7 +559,7 @@ def build_pdf(ed, items):
     from reportlab.lib.units import mm
     from reportlab.platypus import (Image as RLImage, PageBreak,
                                     Paragraph, Spacer, Table, TableStyle)
-    from reportlab.lib.utils import ImageReader
+    from reportlab.platypus.flowables import HRFlowable
 
     indigo = colors.HexColor(INDIGO)
     dark = colors.HexColor("#252775")
@@ -456,21 +567,25 @@ def build_pdf(ed, items):
     light = colors.HexColor("#eef0fa")
     grey = colors.HexColor("#444444")
     page_w, page_h = A4
+    content_w = 174 * mm
 
-    s_title = ParagraphStyle("t", fontName="Helvetica-Bold",
-                             fontSize=13, leading=16, textColor=indigo,
-                             spaceAfter=2 * mm)
+    s_title_banner = ParagraphStyle(
+        "tb", fontName="Helvetica-Bold", fontSize=13, leading=16,
+        textColor=colors.white)
+    s_num_banner = ParagraphStyle(
+        "nb", fontName="Helvetica-Bold", fontSize=20, leading=20,
+        textColor=gold, alignment=TA_CENTER)
     s_body = ParagraphStyle("b", fontName="Helvetica", fontSize=10,
                             leading=14.5, alignment=TA_JUSTIFY,
                             textColor=colors.HexColor("#222222"),
                             spaceAfter=2.5 * mm)
     s_date = ParagraphStyle("d", fontName="Helvetica-Bold", fontSize=9,
-                            leading=12, textColor=gold, spaceAfter=1 * mm)
+                            leading=12, textColor=gold, spaceAfter=2 * mm)
     s_cover_uni = ParagraphStyle("cu", fontName="Helvetica-Bold",
                                  fontSize=11, leading=14,
                                  alignment=TA_CENTER, textColor=indigo)
     s_cover_big = ParagraphStyle("cb", fontName="Helvetica-Bold",
-                                 fontSize=38, leading=40,
+                                 fontSize=42, leading=44,
                                  alignment=TA_CENTER, textColor=indigo)
     s_cover_sub = ParagraphStyle("cs", fontName="Helvetica", fontSize=11,
                                  leading=14, alignment=TA_CENTER,
@@ -478,11 +593,14 @@ def build_pdf(ed, items):
     s_vol = ParagraphStyle("v", fontName="Helvetica-Bold", fontSize=10,
                            leading=13, alignment=TA_CENTER,
                            textColor=colors.white)
-    s_toc = ParagraphStyle("toc", fontName="Helvetica", fontSize=10,
-                           leading=14, textColor=colors.HexColor("#222222"))
-    s_num = ParagraphStyle("n", fontName="Helvetica-Bold", fontSize=22,
-                           leading=22, textColor=colors.white,
-                           alignment=TA_CENTER)
+    s_toc_title = ParagraphStyle("tt", fontName="Helvetica-Bold",
+                                 fontSize=10, leading=13,
+                                 textColor=indigo)
+    s_toc_date = ParagraphStyle("td", fontName="Helvetica", fontSize=8,
+                                leading=11, textColor=grey)
+    s_toc_num = ParagraphStyle("tn", fontName="Helvetica-Bold",
+                               fontSize=14, leading=14,
+                               textColor=colors.white, alignment=TA_CENTER)
 
     def header_footer(canvas, doc):
         canvas.saveState()
@@ -508,8 +626,20 @@ def build_pdf(ed, items):
                                "Page %d" % doc.page)
         canvas.restoreState()
 
+    def full_image(im_data, ratio=(16, 9)):
+        data = cropped_image(im_data, ratio[0], ratio[1])
+        w = content_w
+        h = w * ratio[1] / ratio[0]
+        return RLImage(io.BytesIO(data), width=w, height=h)
+
+    def small_image(im_data, w_mm, ratio=(4, 3)):
+        data = cropped_image(im_data, ratio[0], ratio[1])
+        w = w_mm * mm
+        return RLImage(io.BytesIO(data), width=w,
+                       height=w * ratio[1] / ratio[0])
+
     story = []
-    # Cover header: official logo, university name, NEWSLETTER, volume.
+    # ---- COVER PAGE (Leeds-style, CUVAS branding) ----
     lb = logo_image_bytes()
     if lb:
         try:
@@ -521,6 +651,8 @@ def build_pdf(ed, items):
             pass
     story.append(Paragraph(UNI_NAME, s_cover_uni))
     story.append(Spacer(1, 2 * mm))
+    story.append(HRFlowable(width="100%", thickness=1.2, color=gold,
+                            spaceAfter=4 * mm, spaceBefore=2 * mm))
     story.append(Paragraph("NEWSLETTER", s_cover_big))
     story.append(Paragraph("News and Highlights from Across the University",
                            s_cover_sub))
@@ -542,48 +674,123 @@ def build_pdf(ed, items):
                            ParagraphStyle("vv", parent=s_cover_sub,
                                           fontName="Helvetica-Bold",
                                           textColor=indigo)))
+    story.append(Spacer(1, 5 * mm))
+    covers = covers or []
+    if covers:
+        try:
+            if len(covers) == 1:
+                story.append(full_image(covers[0]["data"]))
+            elif len(covers) == 2:
+                cells = [small_image(c["data"], 86) for c in covers]
+                t = Table([cells], colWidths=[86 * mm, 86 * mm])
+                t.setStyle(TableStyle([
+                    ("LEFTPADDING", (0, 0), (-1, -1), 2),
+                    ("RIGHTPADDING", (0, 0), (-1, -1), 2)]))
+                story.append(t)
+            elif len(covers) == 3:
+                story.append(full_image(covers[0]["data"]))
+                story.append(Spacer(1, 2 * mm))
+                cells = [small_image(c["data"], 86) for c in covers[1:]]
+                t = Table([cells], colWidths=[86 * mm, 86 * mm])
+                t.setStyle(TableStyle([
+                    ("LEFTPADDING", (0, 0), (-1, -1), 2),
+                    ("RIGHTPADDING", (0, 0), (-1, -1), 2)]))
+                story.append(t)
+            else:
+                rows = []
+                for k in (0, 2):
+                    rows.append([small_image(c["data"], 86)
+                                 for c in covers[k:k + 2]])
+                t = Table(rows, colWidths=[86 * mm, 86 * mm])
+                t.setStyle(TableStyle([
+                    ("LEFTPADDING", (0, 0), (-1, -1), 2),
+                    ("RIGHTPADDING", (0, 0), (-1, -1), 2),
+                    ("TOPPADDING", (0, 0), (-1, -1), 2),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 2)]))
+                story.append(t)
+        except Exception:
+            pass
+    story.append(PageBreak())
+
+    # ---- TABLE OF CONTENTS (own page, nicely presented) ----
+    story.append(Paragraph("Contents", ParagraphStyle(
+        "ch", fontName="Helvetica-Bold", fontSize=26, leading=28,
+        textColor=indigo)))
+    story.append(HRFlowable(width="100%", thickness=1.2, color=gold,
+                            spaceAfter=4 * mm, spaceBefore=2 * mm))
+    info = Table([[Paragraph(
+        "%s<br/>%d news item(s) &nbsp;•&nbsp; Version %d"
+        % (ed["volume_line"], len(items), ed["version"]),
+        ParagraphStyle("ib", fontName="Helvetica", fontSize=10,
+                       leading=14, textColor=dark))]],
+        colWidths=[content_w])
+    info.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, -1), light),
+        ("TOPPADDING", (0, 0), (-1, -1), 8),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
+        ("LEFTPADDING", (0, 0), (-1, -1), 10),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 10),
+        ("ROUNDEDCORNERS", [4, 4, 4, 4]),
+    ]))
+    story.append(info)
+    story.append(Spacer(1, 5 * mm))
     if items:
-        story.append(Spacer(1, 5 * mm))
-        story.append(Paragraph("In this issue", ParagraphStyle(
-            "ih", fontName="Helvetica-Bold", fontSize=13, leading=16,
-            textColor=indigo, spaceAfter=3 * mm)))
         toc_rows = []
         for it in items:
-            toc_rows.append([Paragraph("%02d" % it["number"], ParagraphStyle(
-                "tn", fontName="Helvetica-Bold", fontSize=10, leading=13,
-                textColor=indigo)),
-                Paragraph(it["title"], s_toc)])
-        toc = Table(toc_rows, colWidths=[12 * mm, 150 * mm])
+            try:
+                edate = parse_event_date(it["event_date"])
+                date_line = "%s, %s" % (
+                    it["event_day"] or day_name_for(edate),
+                    edate.strftime("%d %B %Y"))
+            except Exception:
+                date_line = "%s — %s" % (it["event_day"],
+                                         it["event_date"])
+            badge = Table([[Paragraph("%02d" % it["number"], s_toc_num)]],
+                          colWidths=[12 * mm], rowHeights=[12 * mm])
+            badge.setStyle(TableStyle([
+                ("BACKGROUND", (0, 0), (-1, -1), indigo),
+                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                ("TOPPADDING", (0, 0), (-1, -1), 3),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
+                ("ROUNDEDCORNERS", [3, 3, 3, 3]),
+            ]))
+            text_cell = Paragraph(
+                "%s<br/><font size=8 color='#666666'>%s</font>"
+                % (it["title"], date_line),
+                ParagraphStyle("tc", fontName="Helvetica-Bold",
+                               fontSize=11, leading=14, textColor=indigo))
+            toc_rows.append([badge, text_cell])
+        toc = Table(toc_rows, colWidths=[15 * mm, 159 * mm])
         toc.setStyle(TableStyle([
             ("VALIGN", (0, 0), (-1, -1), "TOP"),
-            ("BOTTOMPADDING", (0, 0), (-1, -1), 2),
-            ("TOPPADDING", (0, 0), (-1, -1), 2),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+            ("TOPPADDING", (0, 0), (-1, -1), 4),
+            ("LEFTPADDING", (0, 0), (-1, -1), 2),
             ("LINEBELOW", (0, 0), (-1, -2), 0.4, light),
         ]))
         story.append(toc)
     else:
-        story.append(Spacer(1, 8 * mm))
         story.append(Paragraph("No news has been added to this edition yet.",
                                s_cover_sub))
     story.append(PageBreak())
 
-    content_w = 174 * mm
+    # ---- NEWS: dark title banner + interleaved images ----
     for it in items:
-        # Number badge + title + date/day
-        badge = Table([[Paragraph("%02d" % it["number"], s_num)]],
-                      colWidths=[14 * mm], rowHeights=[14 * mm])
-        badge.setStyle(TableStyle([
+        banner = Table(
+            [[Paragraph("%02d" % it["number"], s_num_banner),
+              Paragraph(it["title"].upper(), s_title_banner)]],
+            colWidths=[16 * mm, 158 * mm])
+        banner.setStyle(TableStyle([
             ("BACKGROUND", (0, 0), (-1, -1), indigo),
             ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-            ("TOPPADDING", (0, 0), (-1, -1), 4),
-            ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+            ("TOPPADDING", (0, 0), (-1, -1), 8),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
+            ("LEFTPADDING", (0, 0), (-1, -1), 6),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+            ("ROUNDEDCORNERS", [4, 4, 4, 4]),
         ]))
-        head = Table([[badge, Paragraph(it["title"].upper(), s_title)]],
-                     colWidths=[16 * mm, 158 * mm])
-        head.setStyle(TableStyle([("VALIGN", (0, 0), (-1, -1), "TOP"),
-                                  ("LEFTPADDING", (0, 0), (-1, -1), 2),
-                                  ("RIGHTPADDING", (0, 0), (-1, -1), 2)]))
-        story.append(head)
+        story.append(banner)
+        story.append(Spacer(1, 2 * mm))
         try:
             edate = parse_event_date(it["event_date"])
             date_line = "%s, %s" % (it["event_day"] or
@@ -592,57 +799,77 @@ def build_pdf(ed, items):
         except Exception:
             date_line = "%s — %s" % (it["event_day"], it["event_date"])
         story.append(Paragraph(date_line, s_date))
-        for para in it["body"].split("\n"):
-            para = para.strip()
-            if para:
-                story.append(Paragraph(para.replace("&", "&amp;"), s_body))
+        paras = [p.strip() for p in it["body"].split("\n") if p.strip()]
         imgs = it["images"]
-        if imgs:
-            story.append(Spacer(1, 1 * mm))
-            if len(imgs) == 1:
-                data = cropped_image(imgs[0]["data"], 16, 9)
-                story.append(RLImage(io.BytesIO(data), width=content_w,
-                                     height=content_w * 9 / 16))
-            elif len(imgs) == 2:
-                cells = []
-                for im in imgs:
-                    data = cropped_image(im["data"], 4, 3)
-                    cells.append(RLImage(io.BytesIO(data), width=86 * mm,
-                                         height=64.5 * mm))
-                t = Table([cells], colWidths=[86 * mm, 86 * mm],
-                          spaceBefore=1 * mm, spaceAfter=1 * mm)
-                t.setStyle(TableStyle([("LEFTPADDING", (0, 0), (-1, -1), 2),
-                                       ("RIGHTPADDING", (0, 0), (-1, -1), 2)]))
-                story.append(t)
-            elif len(imgs) == 3:
-                data = cropped_image(imgs[0]["data"], 16, 9)
-                story.append(RLImage(io.BytesIO(data), width=content_w,
-                                     height=content_w * 9 / 16))
-                cells = []
-                for im in imgs[1:]:
-                    data = cropped_image(im["data"], 4, 3)
-                    cells.append(RLImage(io.BytesIO(data), width=86 * mm,
-                                         height=64.5 * mm))
-                t = Table([cells], colWidths=[86 * mm, 86 * mm],
-                          spaceBefore=2 * mm, spaceAfter=1 * mm)
-                t.setStyle(TableStyle([("LEFTPADDING", (0, 0), (-1, -1), 2),
-                                       ("RIGHTPADDING", (0, 0), (-1, -1), 2)]))
-                story.append(t)
-            else:
-                rows = []
-                for k in (0, 2):
-                    cells = []
-                    for im in imgs[k:k + 2]:
-                        data = cropped_image(im["data"], 4, 3)
-                        cells.append(RLImage(io.BytesIO(data), width=86 * mm,
-                                             height=64.5 * mm))
-                    rows.append(cells)
-                t = Table(rows, colWidths=[86 * mm, 86 * mm],
-                          spaceBefore=1 * mm, spaceAfter=1 * mm)
-                t.setStyle(TableStyle([("LEFTPADDING", (0, 0), (-1, -1), 2),
-                                       ("RIGHTPADDING", (0, 0), (-1, -1), 2)]))
-                story.append(t)
-        story.append(Spacer(1, 6 * mm))
+        if not imgs:
+            for para in paras:
+                story.append(Paragraph(para.replace("&", "&amp;"), s_body))
+        else:
+            # Image 1: large, at the start (after the title).
+            try:
+                story.append(full_image(imgs[0]["data"]))
+                story.append(Spacer(1, 2 * mm))
+            except Exception:
+                pass
+            remaining = imgs[1:]
+            if remaining:
+                end_img = remaining[-1]
+                middles = remaining[:-1]
+                # Insertion points for middle images, spread through
+                # the text (not at the very end — the last image goes
+                # at the end).
+                insert_at = {}
+                for j, im in enumerate(middles):
+                    pos = int(len(paras) * (j + 1) / (len(middles) + 1))
+                    if pos >= len(paras):
+                        pos = len(paras) - 1
+                    if pos < 0:
+                        pos = 0
+                    # Avoid two images on the same paragraph.
+                    while pos in insert_at and pos < len(paras) - 1:
+                        pos += 1
+                    insert_at[pos] = im
+                side_used = False
+                i = 0
+                while i < len(paras):
+                    para = paras[i]
+                    story.append(Paragraph(para.replace("&", "&amp;"),
+                                           s_body))
+                    if i in insert_at:
+                        im = insert_at[i]
+                        try:
+                            if not side_used and i + 1 < len(paras):
+                                # Side placement (like the reference):
+                                # next paragraph on the left, photo
+                                # on the right.
+                                side = Table(
+                                    [[Paragraph(paras[i + 1].replace(
+                                        "&", "&amp;"), s_body),
+                                      small_image(im["data"], 58)]],
+                                    colWidths=[112 * mm, 62 * mm])
+                                side.setStyle(TableStyle([
+                                    ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                                    ("LEFTPADDING", (0, 0), (-1, -1), 2),
+                                    ("RIGHTPADDING", (0, 0), (-1, -1), 2),
+                                ]))
+                                story.append(side)
+                                story.append(Spacer(1, 1 * mm))
+                                side_used = True
+                                i += 1  # next paragraph already used
+                            else:
+                                story.append(full_image(im["data"]))
+                                story.append(Spacer(1, 2 * mm))
+                        except Exception:
+                            pass
+                    i += 1
+                # Last image: at the end.
+                try:
+                    story.append(full_image(end_img["data"]))
+                except Exception:
+                    pass
+        story.append(Spacer(1, 3 * mm))
+        story.append(HRFlowable(width="100%", thickness=0.6, color=light,
+                                spaceAfter=5 * mm, spaceBefore=1 * mm))
 
     from reportlab.platypus import SimpleDocTemplate
     buf = io.BytesIO()
@@ -683,7 +910,7 @@ def brand_logo():
 @app.route("/")
 def home():
     ed = get_or_create_current_edition()
-    items = news_for_edition(ed["id"])
+    items = news_for_edition(ed["id"], light=True)
     return render_template("home.html", ed=ed, items=items,
                            editions=list_editions(), uni=UNI_NAME)
 
@@ -693,7 +920,7 @@ def view_edition(eid):
     ed = get_edition(eid)
     if not ed:
         abort(404)
-    items = news_for_edition(eid)
+    items = news_for_edition(eid, light=True)
     return render_template("edition.html", ed=ed, items=items,
                            editions=list_editions(), uni=UNI_NAME)
 
@@ -704,7 +931,15 @@ def edition_pdf(eid):
     if not ed:
         abort(404)
     items = news_for_edition(eid)
-    data = build_pdf(ed, items)
+    covers = cover_images_for_edition(eid)
+    if not covers:
+        # Fallback cover collage: first image of the first news items.
+        for it in items:
+            if it["images"]:
+                covers.append(it["images"][0])
+            if len(covers) >= 4:
+                break
+    data = build_pdf(ed, items, covers)
     return Response(data, mimetype="application/pdf",
                     headers={"Content-Disposition":
                              "attachment; filename=%s" % pdf_filename(ed)})
@@ -733,7 +968,13 @@ def admin_home():
     if not is_admin():
         return redirect(url_for("admin_login"))
     ed = get_or_create_current_edition()
-    items = news_for_edition(ed["id"])
+    items = news_for_edition(ed["id"], light=True)
+    save_err = request.args.get("error", "")
+    cover_count = 0
+    try:
+        cover_count = len(cover_images_for_edition(ed["id"]))
+    except Exception:
+        cover_count = 0
     logs = q_all("SELECT * FROM version_log WHERE edition_id = ? "
                  "ORDER BY id DESC LIMIT 20", (ed["id"],))
     log_list = []
@@ -745,7 +986,8 @@ def admin_home():
         else:
             log_list.append(dict(r))
     return render_template("admin.html", ed=ed, items=items, logs=log_list,
-                           editions=list_editions())
+                           editions=list_editions(), save_err=save_err,
+                           cover_count=cover_count)
 
 
 @app.route("/admin/news", methods=["POST"])
@@ -758,38 +1000,84 @@ def admin_add_news():
     event_date = (request.form.get("event_date") or "").strip()
     event_day = (request.form.get("event_day") or "").strip()
     if not title or not body or not event_date:
-        return redirect(url_for("admin_home"))
+        return redirect(url_for("admin_home", error="missing"))
     try:
         d = parse_event_date(event_date)
     except Exception:
-        return redirect(url_for("admin_home"))
+        return redirect(url_for("admin_home", error="date"))
     if not event_day:
         event_day = day_name_for(d)
     now = datetime.now(timezone.utc).isoformat()
-    nid = q_exec("INSERT INTO news (edition_id, title, body, event_date, "
-                 "event_day, created_at) VALUES (?, ?, ?, ?, ?, ?)",
-                 (ed["id"], title, body, event_date, event_day, now))
-    if IS_PG:
-        # q_exec lastrowid is None for Postgres; fetch by newest row.
-        row = q_one("SELECT id FROM news WHERE edition_id = ? "
-                    "ORDER BY id DESC LIMIT 1", (ed["id"],))
-        nid = row[0] if IS_PG else row["id"]
-    files = request.files.getlist("images")
-    pos = 0
-    for f in files:
-        if pos >= 4 or not f or not f.filename:
-            continue
-        data = f.read()
-        if not data or len(data) > MAX_IMAGE_BYTES:
-            continue
-        mime = magic_mime(data)
-        if not mime:
-            continue
-        q_exec("INSERT INTO news_images (news_id, position, filename, "
-               "mime, data) VALUES (?, ?, ?, ?, ?)",
-               (nid, pos, f.filename, mime, data))
-        pos += 1
-    bump_version(ed["id"], "News added: %s" % title[:80])
+    try:
+        if IS_PG:
+            nid = q_insert_returning_id(
+                "INSERT INTO news (edition_id, title, body, event_date, "
+                "event_day, created_at) VALUES (?, ?, ?, ?, ?, ?) "
+                "RETURNING id",
+                (ed["id"], title, body, event_date, event_day, now))
+        else:
+            nid = q_insert_returning_id(
+                "INSERT INTO news (edition_id, title, body, event_date, "
+                "event_day, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+                (ed["id"], title, body, event_date, event_day, now))
+        files = request.files.getlist("images")
+        pos = 0
+        for f in files:
+            if pos >= 4 or not f or not f.filename:
+                continue
+            data = f.read()
+            if not data or len(data) > MAX_IMAGE_BYTES:
+                continue
+            mime = magic_mime(data)
+            if not mime:
+                continue
+            q_exec("INSERT INTO news_images (news_id, position, filename, "
+                   "mime, data) VALUES (?, ?, ?, ?, ?)",
+                   (nid, pos, f.filename, mime, data))
+            pos += 1
+        bump_version(ed["id"], "News added: %s" % title[:80])
+    except Exception:
+        # No generic 500: show a clear message, and tell the admin to
+        # check the list first — the news may already have been saved
+        # before a slow (cold-start) response timed out, so re-adding
+        # it blindly would duplicate it.
+        return redirect(url_for(
+            "admin_home",
+            error="save_failed_check_list"))
+    return redirect(url_for("admin_home"))
+
+
+@app.route("/admin/cover", methods=["POST"])
+def admin_cover():
+    """Cover-page images for the current edition (up to 4).
+    Uploading replaces the previous cover images. If none are set,
+    the PDF cover falls back to the first images of the news items."""
+    if not is_admin():
+        return redirect(url_for("admin_login"))
+    ed = get_or_create_current_edition()
+    try:
+        q_exec("DELETE FROM edition_cover_images WHERE edition_id = ?",
+               (ed["id"],))
+        files = request.files.getlist("cover_images")
+        pos = 0
+        for f in files:
+            if pos >= 4 or not f or not f.filename:
+                continue
+            data = f.read()
+            if not data or len(data) > MAX_IMAGE_BYTES:
+                continue
+            mime = magic_mime(data)
+            if not mime:
+                continue
+            q_exec("INSERT INTO edition_cover_images (edition_id, "
+                   "position, filename, mime, data) "
+                   "VALUES (?, ?, ?, ?, ?)",
+                   (ed["id"], pos, f.filename, mime, data))
+            pos += 1
+        bump_version(ed["id"], "Cover images updated")
+    except Exception:
+        return redirect(url_for("admin_home",
+                                error="save_failed_check_list"))
     return redirect(url_for("admin_home"))
 
 
@@ -823,7 +1111,7 @@ def admin_edit_news(nid):
             except Exception:
                 pass
         return redirect(url_for("admin_home"))
-    item["images"] = images_for_news(nid)
+    item["images"] = images_meta_for_news(nid)
     return render_template("edit.html", item=item,
                            ed=get_edition(item["edition_id"]))
 

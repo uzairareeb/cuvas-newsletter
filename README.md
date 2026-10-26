@@ -21,6 +21,23 @@ here are CUVAS's own: official CUVAS logo on top, CUVAS indigo
 - **New version every time:** every add / edit / delete bumps the
   edition version. **Download PDF** always gives the latest version,
   named e.g. `CUVAS-Newsletter-October-2026-v3.pdf`.
+- **PDF layout (v2, 2026-10-26):** page 1 is a cover page (logo,
+  university name, NEWSLETTER, Volume/Issue/Month, photo collage),
+  page 2 is a styled Table of Contents (numbered titles + dates),
+  then each news gets a dark indigo title banner (number in gold,
+  white title) and its images are interleaved through the text —
+  first image large at the start, one photo at the side mid-text,
+  the rest spread through the middle, last photo at the end —
+  instead of all photos grouped together.
+- **Cover images:** admin can upload up to 4 cover images per
+  edition (Admin → Cover page images). If none are set, the cover
+  collage falls back to the first images of the news items.
+- **Save robustness:** web pages and the version counter never load
+  photo blobs (filenames/counts only); only PDF generation loads
+  them. A failed Postgres query rolls back instead of poisoning
+  the shared connection, and a failed save shows a clear message
+  asking the admin to check the list first (to avoid a duplicate
+  after a slow cold-start response).
 - **Monthly archive:** at month end the whole month's newsletter is
   saved separately in the system as its own archived edition
   (e.g. October 2026). The new month then starts fresh, numbering from

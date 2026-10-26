@@ -1,7 +1,12 @@
 {% extends "base.html" %}
 {% block body %}
 <h1>Admin &mdash; {{ ed.label }}</h1>
-<p class="pill inline">Volume {{ ed.volume }} &bull; Issue {{ ed.issue }} &bull; Version {{ ed.version }} &bull; {{ items|length }} news</p>
+{% if save_err %}<p class="err">
+{% if save_err == "save_failed_check_list" %}Save me masla aaya tha — pehle neeche list check karein, agar news wahan aa gayi hai to dobara add NA karein (warna duplicate ho jayegi). Agar list me nahi hai to dobara try karein.
+{% elif save_err == "missing" %}Title, body aur event date zaroori hain.
+{% elif save_err == "date" %}Event date theek format me dein (YYYY-MM-DD).
+{% else %}Save me masla aaya: {{ save_err }}{% endif %}</p>{% endif %}
+<p class="pill inline">Volume {{ ed.volume }} &bull; Issue {{ ed.issue }} &bull; Version {{ ed.version }} &bull; {{ items|length }} news &bull; {{ cover_count }} cover image(s)</p>
 <p><a class="btn" href="/edition/{{ ed.id }}/pdf">Download PDF (latest)</a>
 <a class="btn ghost" href="/admin/logout">Sign out</a></p>
 
@@ -24,6 +29,14 @@ document.getElementById('edate').addEventListener('change', function(){
 });
 </script>
 
+<h2>Cover page images (optional)</h2>
+<form method="post" action="/admin/cover" enctype="multipart/form-data" class="form">
+  <label>Cover images (up to 4, PNG/JPG/WebP, max 5 MB each)
+    <input type="file" name="cover_images" accept="image/png,image/jpeg,image/webp" multiple></label>
+  <p class="note">Ye images PDF ke pehle page (cover) par collage ki shakal me aengi — jaise university ki campus/building/event photos. Upload karne se pehli wali cover images replace ho jayengi. Agar koi cover image na ho to cover par news ki pehli images se collage ban jayega.</p>
+  <button class="btn" type="submit">Save cover images</button>
+</form>
+
 <h2>News in this edition (numbered in this order)</h2>
 {% if not items %}<p class="empty">No news yet.</p>{% endif %}
 {% for it in items %}
@@ -31,7 +44,7 @@ document.getElementById('edate').addEventListener('change', function(){
   <div class="num">{{ "%02d"|format(it.number) }}</div>
   <div>
     <h3>{{ it.title }}</h3>
-    <div class="date">{{ it.event_day }}, {{ it.event_date }} &middot; {{ it.images|length }} image(s)</div>
+    <div class="date">{{ it.event_day }}, {{ it.event_date_display }} &middot; {{ it.images|length }} image(s)</div>
     <p>{{ it.body[:300] }}{% if it.body|length > 300 %}...{% endif %}</p>
     <p><a href="/admin/news/{{ it.id }}/edit">Edit</a>
     <form method="post" action="/admin/news/{{ it.id }}/delete" style="display:inline" onsubmit="return confirm('Delete this news? Later numbers will shift up.');"><button class="linkbtn" type="submit">Delete</button></form></p>

@@ -18,7 +18,7 @@
   <div class="num">{{ "%02d"|format(it.number) }}</div>
   <div>
     <h3>{{ it.title }}</h3>
-    <div class="date">{{ it.event_day }}, {{ it.event_date }}</div>
+    <div class="date">{{ it.event_day }}, {{ it.event_date_display }}</div>
     <p>{{ it.body }}</p>
     {% if it.images %}<div class="imgs">
       {% for im in it.images %}
