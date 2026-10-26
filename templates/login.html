@@ -10,7 +10,7 @@
     <h1>WELCOME</h1>
     <h2>CUVAS Newsletter</h2>
     <p>News and Highlights from Across the University — add news with pictures, and every month becomes a new, beautifully designed newsletter PDF.</p>
-    {% if ed %}<p><span class="pill green">{{ ed.volume_line }}</span></p>{% endif %}
+    {% if ed %}<p><span class="pill purple">{{ ed.volume_line }}</span></p>{% endif %}
     <ul class="feature-list">
       <li><span class="tick">✓</span> Add news with 2–4 photos</li>
       <li><span class="tick">✓</span> Numbered monthly edition, in order</li>
@@ -33,7 +33,7 @@
           </span>
         </label>
         <label class="remember"><input type="checkbox" name="remember_me" value="1"> Remember me (30 days)</label>
-        <button class="btn green" type="submit">Sign in</button>
+        <button class="btn purple" type="submit">Sign in</button>
       </form>
       <p class="note">Default demo login: admin / Admin@123. For production, set ADMIN_PASSWORD in Vercel. This is a single admin account — no sign-up or password-reset flow exists.</p>
       <a class="back-link" href="/">&larr; Back to newsletter</a>

@@ -1,24 +1,39 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{% block title %}CUVAS Newsletter{% endblock %}</title>
+<title>{% block title %}CUVAS Newsletter Studio{% endblock %}</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/static/style.css"></head>
 <body>
 <header class="top">
   <img src="/brand/cuvas-logo.png" alt="CUVAS logo" class="logo">
   <div>
     <div class="uni">Cholistan University of Veterinary and Animal Sciences, Bahawalpur</div>
-    <div class="brand">CUVAS Newsletter</div>
+    <div class="brand">CUVAS Newsletter Studio</div>
   </div>
   <nav>
+    {% if ed %}<span class="edition-pill">{{ ed.volume_line }}</span>{% endif %}
     <a href="/">Current edition</a>
     <a href="/admin">Admin</a>
+    {% if session.admin %}
+    <span class="bell">
+      <button type="button" aria-label="Notifications" onclick="document.getElementById('bellDrop').classList.toggle('open')">🔔</button>
+      <span class="bell-drop" id="bellDrop">
+        <strong>Recent activity</strong>
+        {% if logs %}
+        <ul style="padding:0">{% for l in logs[:5] %}<li>v{{ l.version }} — {{ l.action }} ({{ l.news_count }} news)</li>{% endfor %}</ul>
+        {% else %}<p style="font-size:13px">No recent activity in this edition.</p>{% endif %}
+      </span>
+    </span>
+    <span class="profile-chip"><span class="avatar">A</span> Administrator <a href="/admin/logout">Sign out</a></span>
+    {% endif %}
   </nav>
 </header>
-<main>{% block body %}{% endblock %}</main>
-<footer class="foot">CUVAS Newsletter &middot; Cholistan University of Veterinary and Animal Sciences, Bahawalpur</footer>
+<main class="{% block mainclass %}{% endblock %}">{% block body %}{% endblock %}</main>
+<footer class="foot">CUVAS Newsletter Studio &middot; Cholistan University of Veterinary and Animal Sciences, Bahawalpur</footer>
 
-<div class="modal" id="confirmModal" role="dialog" aria-modal="true">
+<div class="modal" id="confirmModal" role="dialog" aria-modal="true" aria-labelledby="confirmTitle">
   <div class="modal-card">
     <h3 id="confirmTitle">Are you sure?</h3>
     <p id="confirmText"></p>
@@ -37,10 +52,10 @@
   var cancel=document.getElementById('confirmCancel');
   var pendingForm=null;
   function close(){modal.classList.remove('open');pendingForm=null;}
-  cancel.addEventListener('click',close);
-  modal.addEventListener('click',function(e){if(e.target===modal)close();});
+  if(cancel)cancel.addEventListener('click',close);
+  if(modal)modal.addEventListener('click',function(e){if(e.target===modal)close();});
   document.addEventListener('keydown',function(e){if(e.key==='Escape')close();});
-  ok.addEventListener('click',function(){if(pendingForm)pendingForm.submit();});
+  if(ok)ok.addEventListener('click',function(){if(pendingForm)pendingForm.submit();});
   document.querySelectorAll('form[data-confirm]').forEach(function(f){
     f.addEventListener('submit',function(e){
       e.preventDefault();pendingForm=f;

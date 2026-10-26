@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block body %}
 <div class="admin-layout">
-  <aside class="sidebar">
+  <aside class="sidebar" aria-label="Admin navigation">
     <div class="logo-band"><img src="/brand/cuvas-logo.png" alt="CUVAS logo"></div>
     <div class="profile">
       <div class="avatar">A</div>
@@ -18,11 +18,11 @@
       <a href="/admin#month">Close month</a>
       <a href="/admin#versions">Version history</a>
       <a href="/admin#editions">All editions</a>
-      <a href="/" class="green">View public page</a>
+      <a href="/" class="purple">View public page</a>
     </nav>
     <div class="side-foot">
       <a href="/admin/logout">Sign out</a>
-      {% if ed %}<p style="font-size:13px;opacity:.85">{{ ed.volume_line }}<br>Version {{ ed.version }}</p>{% endif %}
+      {% if ed %}<p style="font-size:13px;opacity:.85">{{ ed.volume_line }}<br>Version {{ ed.version }} &middot; {{ ed.stage }}</p>{% endif %}
     </div>
   </aside>
   <div class="admin-content">{% block admin_body %}{% endblock %}</div>

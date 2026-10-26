@@ -1,11 +1,11 @@
 {% extends "base.html" %}
 {% block body %}
 <section class="hero">
-  <div class="pill green">Volume {{ ed.volume }} &bull; Issue {{ ed.issue }} &bull; {{ ed.label }}</div>
-  <h1>Newsletter &mdash; {{ ed.label }}</h1>
-  <p><span class="pill">{{ ed.status }}</span> &nbsp; <span class="pill">Version {{ ed.version }}</span> &nbsp; <span class="pill maroon">{{ items|length }} news item(s)</span></p>
+  <div class="pill purple">Volume {{ ed.volume }} &bull; Issue {{ ed.issue }} &bull; {{ ed.label }}</div>
+  <h1>CUVAS Chronicle &mdash; {{ ed.label }}</h1>
+  <p><span class="pill">{{ ed.status }}</span> &nbsp; <span class="pill">Version {{ ed.version }}</span> &nbsp; <span class="pill purple">{{ items|length }} news item(s)</span></p>
   <div class="actions">
-    <a class="btn green" href="/edition/{{ ed.id }}/pdf">Download PDF</a>
+    <a class="btn purple" href="/edition/{{ ed.id }}/pdf">Download PDF</a>
     <a class="btn ghost" href="/">Back to current edition</a>
   </div>
 </section>

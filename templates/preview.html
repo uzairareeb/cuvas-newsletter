@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% block mainclass %}narrow{% endblock %}
+{% block body %}
+<div class="preview-toolbar">
+  <strong>Preview — {{ ed.label }}</strong>
+  <span class="pill purple">{{ ed.volume_line }}</span>
+  <span class="pill">Version {{ ed.version }}</span>
+  <a class="btn blue2" href="/edition/{{ ed.id }}/pdf">Download PDF</a>
+  <button class="btn ghost" type="button" onclick="window.print()">Print</button>
+  <a class="btn ghost" href="/admin">Back to dashboard</a>
+</div>
+
+<section class="preview-page">
+  <div class="masthead">
+    <img src="/brand/cuvas-logo.png" alt="CUVAS logo">
+    <p style="font-weight:700;color:#18335A;margin:8px 0 0">{{ uni }}</p>
+    <hr style="border:0;border-top:2px solid #7255A7;margin:12px 0">
+    <h1 class="chronicle">CUVAS Chronicle</h1>
+    <p>News and Highlights from Across the University</p>
+    <p><span class="pill purple">{{ ed.volume_line }}</span> &nbsp; <span class="pill">Version {{ ed.version }}</span></p>
+  </div>
+  {% if cover %}
+  <p style="color:#7255A7;font-weight:800;letter-spacing:1px;margin-top:24px">COVER STORY</p>
+  {% set ci = (cover.images|selectattr('is_cover')|list|first) or (cover.images[0] if cover.images else none) %}
+  {% if ci %}<a href="/image/news/{{ ci.id }}" target="_blank" rel="noopener"><img class="cover-img" src="/image/news/{{ ci.id }}" alt="{{ ci.filename }}"></a>{% if ci.caption %}<p class="note" style="text-align:center">{{ ci.caption }}</p>{% endif %}{% endif %}
+  <h2 class="headline">{{ cover.title }}</h2>
+  <p style="color:#7255A7;font-weight:700">{{ cover.event_day }}, {{ cover.event_date_display }} &nbsp;|&nbsp; {{ cover.category }}</p>
+  <p style="font-style:italic;color:#555">{{ cover.summary or cover.body[:400] }}</p>
+  {% elif covers %}
+  <div class="gal">
+    {% for c in covers %}<a href="/image/cover/{{ c.id }}" target="_blank" rel="noopener"><img src="/image/cover/{{ c.id }}" alt="{{ c.filename }}"></a>{% endfor %}
+  </div>
+  {% endif %}
+</section>
+
+<section class="preview-page">
+  <h2 class="sec">Contents</h2>
+  <p>{{ ed.volume_line }} &middot; {{ items|length }} news item(s) &middot; Version {{ ed.version }}</p>
+  <ol>
+  {% for it in items %}
+    <li><strong>{{ it.title }}</strong> — {{ it.event_day }}, {{ it.event_date_display }} | {{ it.category }}</li>
+  {% endfor %}
+  </ol>
+  {% if not items %}<p class="empty">No news has been added to this edition yet.</p>{% endif %}
+</section>
+
+{% for sec_title, sec_items in groups %}
+<section class="preview-page">
+  <h2 class="sec">{{ sec_title }}</h2>
+  {% for it in sec_items %}
+  <article>
+    <p><span class="pill">{{ "%02d"|format(it.number) }}</span></p>
+    <h3 class="headline">{{ it.title }}</h3>
+    <p style="color:#7255A7;font-weight:700">{{ it.event_day }}, {{ it.event_date_display }} &nbsp;|&nbsp; {{ it.category }}</p>
+    {% if it.venue or it.department or it.participants or it.source_credit %}
+    <p class="note">{% if it.venue %}Venue: {{ it.venue }} &nbsp;|&nbsp; {% endif %}{% if it.department %}Department: {{ it.department }} &nbsp;|&nbsp; {% endif %}{% if it.participants %}Participants: {{ it.participants }} &nbsp;|&nbsp; {% endif %}{% if it.source_credit %}Source: {{ it.source_credit }}{% endif %}</p>
+    {% endif %}
+    {% if it.summary %}<p style="font-style:italic;color:#555">{{ it.summary }}</p>{% endif %}
+    <p style="white-space:pre-wrap">{{ it.body }}</p>
+    {% if it.images %}
+    <div class="gal">
+      {% for im in it.images %}<a href="/image/news/{{ im.id }}" target="_blank" rel="noopener"><img src="/image/news/{{ im.id }}" alt="{{ im.filename }}" loading="lazy"></a>{% endfor %}
+    </div>
+    {% endif %}
+  </article>
+  <hr style="border:0;border-top:1px solid #e5e7eb;margin:20px 0">
+  {% endfor %}
+</section>
+{% endfor %}
+
+<section class="preview-page" style="text-align:center">
+  <p><strong>{{ uni }}</strong><br>{{ ed.volume_line }} &middot; Version {{ ed.version }}</p>
+  <p class="note">This preview matches the exported PDF layout: masthead, cover story, contents, and grouped sections. The PDF adds running headers, footers and page numbers.</p>
+</section>
+{% endblock %}

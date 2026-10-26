@@ -128,3 +128,42 @@ Local data uses SQLite (`cuvas_newsletter.db` in the project folder).
   MY CUVAS `brand_logo.py`). Logo bytes are used exactly as supplied,
   never modified.
 - `templates/` — Jinja templates, `static/style.css` — hand-written CSS.
+
+
+## V5 — CUVAS Newsletter Studio (2026-10-26)
+- **New identity:** "CUVAS Newsletter Studio", deep academic blue
+  `#18335A` + `#315D93` + restrained purple `#7255A7`, white and
+  light neutral grey, Inter for the interface, editorial serif
+  headings in the publication. The official CUVAS logo is unchanged
+  (no AI-generated replacement).
+- **Single-page dashboard:** header with logo, edition pill,
+  notifications (latest version-log actions, no invented unread
+  count) and Administrator profile; summary cards (total news,
+  added this week, edition status, archived editions); monthly
+  publication progress (news + cover + versioned); actions Add
+  News/Event (drawer), Preview Newsletter, Export Newsletter (PDF),
+  Edition Archive; recent-news table with thumbnail, title,
+  category, event date, date added, serial, status and record ID;
+  search, category filter, month selector and sorting.
+- **News entry (drawer):** title, category (8 options), date with
+  auto day, short summary, full content, venue, department,
+  participants, source/credit, 2–4 photos with preview, reorder,
+  captions and a designated cover image, upload progress, Save
+  Draft vs Add to Current Edition. Drafts stay out of the public
+  edition, preview and PDF until published.
+- **Newsletter ("CUVAS Chronicle"):** masthead, cover story
+  (first published item, teaser on the cover, full story inside
+  its section), Contents, then sections in order — University
+  Highlights, Academic Activities, Research, Achievements, Events,
+  Announcements, Student Activities, Other News — A4 portrait,
+  multi-page, running header/footer and page numbers.
+- **Editions:** one cumulative edition per month (duplicate
+  creation guarded), serial numbers for published items only,
+  record IDs kept separate, stages Draft / Ready for Review /
+  Published / Archived, month-end archiving preserves content,
+  photos and PDFs.
+- **Additive-only data changes:** new nullable columns (category,
+  summary, venue, department, participants, source_credit,
+  is_draft, image caption/is_cover, edition stage) are added by
+  migration; existing rows and tables are never dropped, and old
+  news defaults to University News with its first photo as cover.

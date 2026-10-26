@@ -1,7 +1,10 @@
 {% extends "admin_base.html" %}
 {% block admin_body %}
-<h1>Admin Dashboard</h1>
-<p class="sub">Welcome back, Administrator &mdash; {{ ed.label }}</p>
+<h1>Newsletter Dashboard</h1>
+<p class="sub">CUVAS Newsletter Studio &mdash; {{ ed.label }} &middot; {{ ed.volume_line }}</p>
+{% if msg == "added" %}<p class="ok">News added to the current edition. The PDF version has been updated.</p>
+{% elif msg == "draft" %}<p class="ok">Draft saved. It is not in the public edition or PDF yet — publish it from the table below when ready.</p>
+{% elif msg == "published" %}<p class="ok">Draft published to the current edition.</p>{% endif %}
 {% if save_err %}<p class="err">
 {% if save_err == "save_failed_check_list" %}Save me masla aaya tha — pehle neeche list check karein, agar news wahan aa gayi hai to dobara add NA karein (warna duplicate ho jayegi). Agar list me nahi hai to dobara try karein.
 {% elif save_err == "missing" %}Title, body aur event date zaroori hain.
@@ -9,39 +12,106 @@
 {% else %}Save me masla aaya: {{ save_err }}{% endif %}</p>{% endif %}
 
 <div class="kpis">
-  <div class="kpi"><div class="v">{{ items|length }}</div><div class="l">News in this edition</div></div>
-  <div class="kpi"><div class="v">v{{ ed.version }}</div><div class="l">Current version</div></div>
-  <div class="kpi"><div class="v">Vol {{ ed.volume }} / Iss {{ ed.issue }}</div><div class="l">{{ ed.label }}</div></div>
-  <div class="kpi"><div class="v">{{ cover_count }}</div><div class="l">Cover images</div></div>
+  <div class="kpi"><div class="v">{{ total_all }}</div><div class="l">Total news / events (all editions)</div></div>
+  <div class="kpi"><div class="v">{{ week_count }}</div><div class="l">Items added this week</div></div>
+  <div class="kpi"><div class="v">{{ ed.stage }}</div><div class="l">Current edition status &middot; v{{ ed.version }}</div></div>
+  <div class="kpi"><div class="v">{{ archived_count }}</div><div class="l">Published / archived editions</div></div>
 </div>
-<div class="actions">
-  <a class="btn green" href="/edition/{{ ed.id }}/pdf">Download PDF (latest)</a>
-  <a class="btn ghost" href="/">View public page</a>
-</div>
+
+<section class="section-card">
+  <h2 class="section-title"><span class="dot"></span> Monthly publication progress — {{ progress }}%</h2>
+  <div class="progress" role="progressbar" aria-valuenow="{{ progress }}" aria-valuemin="0" aria-valuemax="100"><i style="width:{{ progress }}%"></i></div>
+  <p class="note">{% for name, ok in steps %}{% if ok %}✓{% else %}○{% endif %} {{ name }}{% if not loop.last %} &nbsp;·&nbsp; {% endif %}{% endfor %}</p>
+  <div class="actions">
+    <button class="btn" type="button" onclick="openDrawer()">+ Add News / Event</button>
+    <a class="btn purple" href="/edition/{{ ed.id }}/preview" target="_blank" rel="noopener">Preview Newsletter</a>
+    <a class="btn blue2" href="/edition/{{ ed.id }}/pdf">Export Newsletter (PDF)</a>
+    <a class="btn ghost" href="#editions">Edition Archive</a>
+  </div>
+  {% if ed.status != "archived" %}
+  <form method="post" action="/admin/edition-stage" class="filters" style="margin-top:14px">
+    <label>Edition status
+      <select name="stage">
+        {% for s in ["Draft", "Ready for Review", "Published"] %}
+        <option value="{{ s }}" {% if ed.stage == s %}selected{% endif %}>{{ s }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <button class="btn small ghost" type="submit">Update status</button>
+  </form>
+  {% else %}
+  <p class="note">This edition is <strong>Archived</strong> — its content and PDF are preserved and it is no longer edited.</p>
+  {% endif %}
+</section>
 
 <section class="section-card" id="add-news">
   <h2 class="section-title"><span class="dot"></span> Add news</h2>
-  <form method="post" action="/admin/news" enctype="multipart/form-data" class="form">
-    <label>News title * <input name="title" required></label>
-    <label>Body text * <textarea name="body" rows="6" required></textarea></label>
-    <label>Event date * <input type="date" name="event_date" id="edate" required></label>
-    <label>Day of the event <input name="event_day" id="eday" placeholder="Auto-filled from the date"></label>
-    <label>Images (1&ndash;4, 2&ndash;4 recommended, PNG/JPG/WebP, max 5 MB each)
-      <input type="file" name="images" accept="image/png,image/jpeg,image/webp" multiple></label>
-    <p class="note">Images are placed automatically in the PDF and on the web page, rotating through 4 layouts (Classic, Gallery, Side story, Magazine) — news 1, 5, 9... get layout 1, news 2, 6, 10... get layout 2, and so on. Side and last photos are adjusted according to the layout.</p>
-    <button class="btn green" type="submit">Add news to this edition</button>
+  <p class="note">Add news in the drawer — title, category, date (day auto), short summary, full content, venue/department/participants/source, and 2–4 photographs with preview, reorder, captions and a cover image. Save as Draft, or Add to Current Edition to publish it immediately.</p>
+  <button class="btn" type="button" onclick="openDrawer()">Open Add News drawer</button>
+</section>
+
+<section class="section-card" id="news-list">
+  <div class="section-head"><h2 class="section-title"><span class="dot"></span> Recent news / events</h2><span class="pill">{{ published_count }} published{% if draft_count %} &middot; {{ draft_count }} draft{% endif %}</span></div>
+  <form method="get" action="/admin" class="filters">
+    <label>Month / edition
+      <select name="edition">
+        {% for e in editions %}<option value="{{ e.id }}" {% if e.id == ed.id %}selected{% endif %}>{{ e.label }} (v{{ e.version }}, {{ e.status }})</option>{% endfor %}
+      </select>
+    </label>
+    <label>Search <input name="q" value="{{ q }}" placeholder="Title or text..."></label>
+    <label>Category
+      <select name="category">
+        <option value="">All categories</option>
+        {% for c in categories %}<option value="{{ c }}" {% if cat == c %}selected{% endif %}>{{ c }}</option>{% endfor %}
+      </select>
+    </label>
+    <label>Sort
+      <select name="sort">
+        <option value="newest" {% if sort == "newest" %}selected{% endif %}>Newest added</option>
+        <option value="oldest" {% if sort == "oldest" %}selected{% endif %}>Oldest added</option>
+        <option value="event_new" {% if sort == "event_new" %}selected{% endif %}>Event date: newest</option>
+        <option value="event_old" {% if sort == "event_old" %}selected{% endif %}>Event date: oldest</option>
+        <option value="title" {% if sort == "title" %}selected{% endif %}>Title A–Z</option>
+      </select>
+    </label>
+    <button class="btn small" type="submit">Apply</button>
+    <a class="btn small ghost" href="/admin">Clear</a>
   </form>
-  <script>
-  document.getElementById('edate').addEventListener('change', function(){
-    var d = new Date(this.value + 'T12:00:00');
-    if (!isNaN(d)) document.getElementById('eday').value =
-      d.toLocaleDateString('en-GB', {weekday:'long'});
-  });
-  </script>
+  {% if not items %}<p class="empty">No news matches these filters. Try clearing the search or category, or add the first news for this edition.</p>
+  {% else %}
+  <div class="table-wrap">
+  <table class="data" aria-label="Recent news and events">
+    <thead><tr><th>Photo</th><th>Title</th><th>Category</th><th>Event date</th><th>Date added</th><th>Serial</th><th>Status</th><th>Actions</th></tr></thead>
+    <tbody>
+    {% for it in items %}
+    <tr>
+      <td>{% if it.images %}<a href="/image/news/{{ it.images[0].id }}" target="_blank" rel="noopener"><img class="thumb" src="/image/news/{{ it.images[0].id }}" alt="" loading="lazy"></a>{% else %}<span class="thumb-none">No photo</span>{% endif %}</td>
+      <td><strong>{{ it.title }}</strong><br><span class="note">Record ID {{ it.id }}{% if it.summary %} · {{ it.summary[:80] }}{% endif %}</span></td>
+      <td><span class="pill purple">{{ it.category }}</span></td>
+      <td>{{ it.event_day }}, {{ it.event_date_display }}</td>
+      <td>{{ it.created_at[:10] }}</td>
+      <td>{% if it.number %}{{ "%02d"|format(it.number) }}{% else %}—{% endif %}</td>
+      <td>{% if it.is_draft %}<span class="pill grey">Draft</span>{% else %}<span class="pill green">Published</span>{% endif %}</td>
+      <td>
+        <div class="actions">
+          <a class="btn small ghost" href="/admin/news/{{ it.id }}/edit">Edit</a>
+          {% if it.is_draft %}
+          <form method="post" action="/admin/news/{{ it.id }}/publish"><button class="btn small purple" type="submit">Publish</button></form>
+          {% endif %}
+          <form method="post" action="/admin/news/{{ it.id }}/delete" data-confirm="This news will be deleted from this edition. Later serial numbers will shift up. Are you sure?" data-confirm-title="Delete this news?"><button class="linkbtn" type="submit">Delete</button></form>
+        </div>
+      </td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% endif %}
+  <p class="note">Serial number = visible number in the newsletter (published items only, in addition order). Record ID = the item's permanent database ID and never changes, even if serials shift after a deletion.</p>
 </section>
 
 <section class="section-card" id="cover">
-  <h2 class="section-title"><span class="dot orange"></span> Cover page images (optional)</h2>
+  <h2 class="section-title"><span class="dot"></span> Cover page images (optional)</h2>
   {% if cover_meta %}
   <div class="img-grid">
     {% for im in cover_meta %}
@@ -52,55 +122,127 @@
   <form method="post" action="/admin/cover" enctype="multipart/form-data" class="form">
     <label>Cover images (up to 4, PNG/JPG/WebP, max 5 MB each)
       <input type="file" name="cover_images" accept="image/png,image/jpeg,image/webp" multiple></label>
-    <p class="note">Ye images PDF ke pehle page (cover) par collage ki shakal me aengi. Upload karne se pehli wali cover images replace ho jayengi. Agar koi cover image na ho to cover par news ki pehli images se collage ban jayega.</p>
+    <p class="note">Ye images PDF ke pehle page (cover) par collage ki shakal me aengi jab koi cover story na ho. Upload karne se pehli wali cover images replace ho jayengi. Agar koi cover image na ho to cover par news ki pehli images se collage ban jayega.</p>
     <button class="btn" type="submit">Save cover images</button>
   </form>
 </section>
 
-<section class="section-card" id="news-list">
-  <h2 class="section-title"><span class="dot maroon"></span> News in this edition <span class="pill">{{ items|length }} news</span></h2>
-  {% if not items %}<p class="empty">No news yet.</p>{% endif %}
-  {% for it in items %}
-  <article class="news">
-    <div class="num">{{ "%02d"|format(it.number) }}</div>
-    <div>
-      <h3>{{ it.title }}</h3>
-      <div class="date">{{ it.event_day }}, {{ it.event_date_display }} &middot; {{ it.images|length }} image(s)</div>
-      {% if it.images %}
-        <a href="/image/news/{{ it.images[0].id }}" target="_blank" rel="noopener"><img class="img-main" src="/image/news/{{ it.images[0].id }}" alt="{{ it.images[0].filename }}" loading="lazy"></a>
-        {% if it.images|length > 1 %}
-        <div class="img-grid">
-          {% for im in it.images[1:] %}
-          <a href="/image/news/{{ im.id }}" target="_blank" rel="noopener"><img src="/image/news/{{ im.id }}" alt="{{ im.filename }}" loading="lazy"></a>
-          {% endfor %}
-        </div>
-        {% endif %}
-      {% endif %}
-      <p>{{ it.body[:400] }}{% if it.body|length > 400 %}...{% endif %}</p>
-      <div class="actions">
-        <a class="btn small ghost" href="/admin/news/{{ it.id }}/edit">Edit</a>
-        <form method="post" action="/admin/news/{{ it.id }}/delete" data-confirm="This news will be deleted from this edition. Later numbers will shift up. Are you sure?" data-confirm-title="Delete this news?"><button class="linkbtn" type="submit">Delete</button></form>
-      </div>
-    </div>
-  </article>
-  {% endfor %}
-</section>
-
 <section class="section-card" id="month">
-  <h2 class="section-title"><span class="dot orange"></span> Month</h2>
+  <h2 class="section-title"><span class="dot"></span> Month</h2>
   <form method="post" action="/admin/close-month" data-confirm="This month will be saved in the archive and a new edition will start. Are you sure?" data-confirm-title="Close this month?">
     <button class="btn ghost" type="submit">Close month &amp; save in archive</button>
   </form>
-  <p class="note">Normally this happens automatically when the calendar month changes. Use this button only to close a month early.</p>
+  <p class="note">Normally this happens automatically when the calendar month changes. Use this button only to close a month early. A duplicate edition for the next month is never created — if it already exists, that edition is reused.</p>
 </section>
 
 <section class="section-card" id="versions">
-  <h2 class="section-title"><span class="dot"></span> Version history <span class="pill green">Current v{{ ed.version }}</span></h2>
+  <h2 class="section-title"><span class="dot"></span> Version history <span class="pill purple">Current v{{ ed.version }}</span></h2>
   <ul class="version-list">{% for l in logs %}<li><span class="pill">v{{ l.version }}</span> {{ l.action }} <span class="note">({{ l.news_count }} news)</span></li>{% endfor %}</ul>
 </section>
 
 <section class="section-card" id="editions">
-  <h2 class="section-title"><span class="dot maroon"></span> All editions</h2>
-  <ul class="archive">{% for e in editions %}<li>{{ e.label }} &mdash; Volume {{ e.volume }}, Issue {{ e.issue }} (<span class="pill {% if e.status == 'open' %}green{% else %}maroon{% endif %}">{{ e.status }}</span>, v{{ e.version }}) &middot; <a href="/edition/{{ e.id }}/pdf">PDF</a> &middot; <a href="/edition/{{ e.id }}">View</a></li>{% endfor %}</ul>
+  <h2 class="section-title"><span class="dot"></span> All editions — Monthly archive</h2>
+  <ul class="archive">{% for e in editions %}<li>{{ e.label }} &mdash; Volume {{ e.volume }}, Issue {{ e.issue }} (<span class="pill {% if e.status == 'archived' %}grey{% else %}purple{% endif %}">{{ e.status }}{% if e.stage and e.stage != 'Draft' %} / {{ e.stage }}{% endif %}</span>, v{{ e.version }}) &middot; <a href="/edition/{{ e.id }}/pdf">PDF</a> &middot; <a href="/edition/{{ e.id }}/preview" target="_blank" rel="noopener">Preview</a> &middot; <a href="/edition/{{ e.id }}">View</a></li>{% endfor %}</ul>
 </section>
+
+<div class="drawer-overlay" id="drawerOverlay" onclick="closeDrawer()"></div>
+<aside class="drawer" id="newsDrawer" role="dialog" aria-modal="true" aria-label="Add news or event">
+  <div class="drawer-head"><h2>Add News / Event</h2><button class="close-btn" type="button" onclick="closeDrawer()" aria-label="Close">×</button></div>
+  <p class="note">Fields marked * are required. Photographs: 2–4 recommended, PNG/JPG/WebP, max 5 MB each. Drag-free reorder with the ↑ ↓ buttons; the first photo is the cover unless you pick another.</p>
+  <div id="drawerError" class="err" style="display:none"></div>
+  <form id="newsForm" method="post" action="/admin/news" enctype="multipart/form-data" class="form">
+    <label>News / event title * <input name="title" required></label>
+    <label>Category *
+      <select name="category" required>
+        {% for c in categories %}<option value="{{ c }}">{{ c }}</option>{% endfor %}
+      </select>
+    </label>
+    <div class="row2">
+      <label>News / event date * <input type="date" name="event_date" id="dEdDate" required></label>
+      <label>Day <input name="event_day" id="dEdDay" placeholder="Auto-filled from the date"></label>
+    </div>
+    <label>Short summary <textarea name="summary" rows="2" placeholder="One or two lines for the cover story and section intro"></textarea></label>
+    <label>Full news content * <textarea name="body" rows="6" required></textarea></label>
+    <div class="row2">
+      <label>Venue <input name="venue" placeholder="e.g. Main Auditorium"></label>
+      <label>Department <input name="department" placeholder="e.g. Zoology"></label>
+    </div>
+    <label>Participants <input name="participants" placeholder="Names / groups, separated by commas"></label>
+    <label>Source / credit <input name="source_credit" placeholder="e.g. CUVAS Media Cell"></label>
+    <label>Photographs (2–4 recommended)
+      <input type="file" name="images" id="dImages" accept="image/png,image/jpeg,image/webp" multiple></label>
+    <div class="photo-previews" id="photoPreviews"></div>
+    <div class="upload-progress" id="uploadProgress"><i id="uploadBar"></i></div>
+    <input type="hidden" name="action" id="formAction" value="publish">
+    <div class="actions">
+      <button class="btn ghost" type="submit" onclick="document.getElementById('formAction').value='draft'">Save Draft</button>
+      <button class="btn purple" type="submit" onclick="document.getElementById('formAction').value='publish'">Add to Current Edition</button>
+      <button class="btn ghost" type="button" onclick="closeDrawer()">Cancel</button>
+    </div>
+  </form>
+</aside>
+<script>
+(function(){
+  var drawer=document.getElementById('newsDrawer');
+  var overlay=document.getElementById('drawerOverlay');
+  window.openDrawer=function(){drawer.classList.add('open');overlay.classList.add('open');var t=drawer.querySelector('input[name=title]');if(t)t.focus();};
+  window.closeDrawer=function(){drawer.classList.remove('open');overlay.classList.remove('open');};
+  document.addEventListener('keydown',function(e){if(e.key==='Escape')closeDrawer();});
+  var d=document.getElementById('dEdDate'), dy=document.getElementById('dEdDay');
+  if(d) d.addEventListener('change',function(){
+    var dt=new Date(this.value+'T12:00:00');
+    if(!isNaN(dt)) dy.value=dt.toLocaleDateString('en-GB',{weekday:'long'});
+  });
+  var input=document.getElementById('dImages'), wrap=document.getElementById('photoPreviews');
+  var photos=[]; // {file, caption, cover}
+  function render(){
+    wrap.innerHTML='';
+    photos.forEach(function(ph,i){
+      var card=document.createElement('div');card.className='photo-card';
+      var img=document.createElement('img');img.src=URL.createObjectURL(ph.file);img.alt=ph.file.name;
+      var cap=document.createElement('input');cap.type='text';cap.name='captions';cap.placeholder='Caption (optional)';cap.value=ph.caption||'';
+      cap.addEventListener('input',function(){ph.caption=cap.value;});
+      var mini=document.createElement('div');mini.className='mini';
+      var cov=document.createElement('label');cov.style.fontWeight='normal';cov.style.fontSize='13px';
+      var radio=document.createElement('input');radio.type='radio';radio.name='cover_index';radio.value=i;
+      radio.checked=(photos.findIndex(function(x){return x.cover;})===i)||(i===0&&!photos.some(function(x){return x.cover;}));
+      radio.addEventListener('change',function(){photos.forEach(function(x){x.cover=false;});ph.cover=true;});
+      cov.appendChild(radio);cov.appendChild(document.createTextNode(' Cover image'));
+      var up=document.createElement('button');up.type='button';up.textContent='↑';
+      up.addEventListener('click',function(){if(i>0){var tmp=photos[i-1];photos[i-1]=photos[i];photos[i]=tmp;render();}});
+      var dn=document.createElement('button');dn.type='button';dn.textContent='↓';
+      dn.addEventListener('click',function(){if(i<photos.length-1){var tmp=photos[i+1];photos[i+1]=photos[i];photos[i]=tmp;render();}});
+      var rm=document.createElement('button');rm.type='button';rm.textContent='Remove';
+      rm.addEventListener('click',function(){photos.splice(i,1);render();});
+      mini.appendChild(cov);mini.appendChild(up);mini.appendChild(dn);mini.appendChild(rm);
+      card.appendChild(img);card.appendChild(cap);card.appendChild(mini);wrap.appendChild(card);
+    });
+  }
+  if(input) input.addEventListener('change',function(){
+    photos=Array.prototype.slice.call(input.files).slice(0,4).map(function(f){return {file:f,caption:'',cover:false};});
+    if(photos.length) photos[0].cover=true;
+    render();
+  });
+  var form=document.getElementById('newsForm'), errBox=document.getElementById('drawerError');
+  if(form) form.addEventListener('submit',function(e){
+    if(!window.XMLHttpRequest) return;
+    e.preventDefault();errBox.style.display='none';
+    var fd=new FormData(form);
+    fd.delete('images');fd.delete('captions');fd.delete('cover_index');
+    var coverIdx=0;
+    photos.forEach(function(ph,i){fd.append('images',ph.file,ph.file.name);fd.append('captions',ph.caption||'');if(ph.cover)coverIdx=i;});
+    fd.append('cover_index',String(coverIdx));
+    var bar=document.getElementById('uploadBar'), prog=document.getElementById('uploadProgress');
+    prog.style.display='block';bar.style.width='0%';
+    var xhr=new XMLHttpRequest();xhr.open('POST',form.action,true);
+    xhr.upload.addEventListener('progress',function(ev){if(ev.lengthComputable)bar.style.width=Math.round(ev.loaded/ev.total*100)+'%';});
+    xhr.addEventListener('load',function(){
+      if(xhr.status>=200&&xhr.status<400){window.location.href=xhr.responseURL||'/admin';}
+      else{errBox.textContent='Save failed. Please check the news list first — if the news is there, do not add it again.';errBox.style.display='block';prog.style.display='none';}
+    });
+    xhr.addEventListener('error',function(){errBox.textContent='Network error while saving. Please try again.';errBox.style.display='block';prog.style.display='none';});
+    xhr.send(fd);
+  });
+})();
+</script>
 {% endblock %}

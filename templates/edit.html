@@ -1,22 +1,45 @@
 {% extends "admin_base.html" %}
 {% block admin_body %}
 <h1>Edit news &mdash; {{ ed.label }}</h1>
+<p class="note">Record ID {{ item.id }}{% if item.number %} &middot; Newsletter serial {{ "%02d"|format(item.number) }}{% else %} &middot; Draft (no serial yet){% endif %}</p>
 {% if item.images %}
 <div class="img-grid">
   {% for im in item.images %}
   <a href="/image/news/{{ im.id }}" target="_blank" rel="noopener"><img src="/image/news/{{ im.id }}" alt="{{ im.filename }}" loading="lazy"></a>
   {% endfor %}
 </div>
+<p class="note">{% for im in item.images %}{{ im.filename }}{% if im.caption %} — “{{ im.caption }}”{% endif %}{% if im.is_cover %} (cover){% endif %}{% if not loop.last %} · {% endif %}{% endfor %}</p>
 {% endif %}
 <form method="post" class="form">
   <label>News title * <input name="title" value="{{ item.title }}" required></label>
+  <label>Category *
+    <select name="category" required>
+      {% for c in categories %}<option value="{{ c }}" {% if item.category == c %}selected{% endif %}>{{ c }}</option>{% endfor %}
+    </select>
+  </label>
+  <label>Short summary <textarea name="summary" rows="2">{{ item.summary or "" }}</textarea></label>
   <label>Body text * <textarea name="body" rows="6" required>{{ item.body }}</textarea></label>
-  <label>Event date * <input type="date" name="event_date" value="{{ item.event_date }}" required></label>
-  <label>Day of the event <input name="event_day" value="{{ item.event_day }}"></label>
+  <div class="row2">
+    <label>Event date * <input type="date" name="event_date" value="{{ item.event_date }}" required></label>
+    <label>Day of the event <input name="event_day" value="{{ item.event_day }}"></label>
+  </div>
+  <div class="row2">
+    <label>Venue <input name="venue" value="{{ item.venue or "" }}"></label>
+    <label>Department <input name="department" value="{{ item.department or "" }}"></label>
+  </div>
+  <label>Participants <input name="participants" value="{{ item.participants or "" }}"></label>
+  <label>Source / credit <input name="source_credit" value="{{ item.source_credit or "" }}"></label>
   <div class="actions">
-    <button class="btn" type="submit">Save changes</button>
+    <button class="btn purple" type="submit">Save changes</button>
     <a class="btn ghost" href="/admin">Cancel</a>
   </div>
 </form>
-<p class="note">Images cannot be replaced in this version; delete and re-add the news to change its images. Its number stays in place if you only edit text.</p>
+{% if item.is_draft %}
+<section class="section-card">
+  <h2 class="section-title"><span class="dot"></span> Publish this draft</h2>
+  <p class="note">Publishing gives this news its serial number in the edition and includes it in the preview and PDF.</p>
+  <form method="post" action="/admin/news/{{ item.id }}/publish"><button class="btn purple" type="submit">Publish draft</button></form>
+</section>
+{% endif %}
+<p class="note">Images cannot be replaced in this version; delete and re-add the news to change its images. Its number stays in place if you only edit text (published items only).</p>
 {% endblock %}

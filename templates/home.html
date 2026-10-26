@@ -1,17 +1,17 @@
 {% extends "base.html" %}
 {% block body %}
 <section class="hero">
-  <div class="pill green">Volume {{ ed.volume }} &bull; Issue {{ ed.issue }} &bull; {{ ed.label }}</div>
-  <h1>Newsletter &mdash; {{ ed.label }}</h1>
+  <div class="pill purple">Volume {{ ed.volume }} &bull; Issue {{ ed.issue }} &bull; {{ ed.label }}</div>
+  <h1>CUVAS Chronicle &mdash; {{ ed.label }}</h1>
   <p class="sub">News and Highlights from Across the University</p>
-  <p><span class="pill">Version {{ ed.version }}</span> &nbsp; <span class="pill maroon">{{ items|length }} news item(s)</span></p>
+  <p><span class="pill">Version {{ ed.version }}</span> &nbsp; <span class="pill purple">{{ items|length }} news item(s)</span></p>
   <div class="actions">
-    <a class="btn green" href="/edition/{{ ed.id }}/pdf">Download PDF (latest version)</a>
+    <a class="btn purple" href="/edition/{{ ed.id }}/pdf">Download PDF (latest version)</a>
     {% if items %}<a class="btn ghost" href="#news">Read below</a>{% endif %}
   </div>
 </section>
 
-<div class="section-head" id="news"><h2>In this edition</h2><span class="pill orange">{{ items|length }} news</span></div>
+<div class="section-head" id="news"><h2>In this edition</h2><span class="pill purple">{{ items|length }} news</span></div>
 {% if not items %}
 <p class="empty">No news has been added to this edition yet. Admin can add the first news from the Admin page.</p>
 {% endif %}
@@ -71,11 +71,11 @@
 {% endfor %}
 
 <section class="section-card">
-  <h2 class="section-title"><span class="dot orange"></span> Monthly archive</h2>
+  <h2 class="section-title"><span class="dot"></span> Monthly archive</h2>
   <ul class="archive">
   {% for e in editions %}
     <li><a href="/edition/{{ e.id }}">{{ e.label }}</a> &mdash; Volume {{ e.volume }}, Issue {{ e.issue }}
-    (<span class="pill {% if e.status == 'open' %}green{% else %}maroon{% endif %}">{{ e.status }}</span>, v{{ e.version }}) &middot; <a href="/edition/{{ e.id }}/pdf">Download PDF</a></li>
+    (<span class="pill {% if e.status == 'open' %}purple{% else %}grey{% endif %}">{{ e.status }}</span>, v{{ e.version }}) &middot; <a href="/edition/{{ e.id }}/pdf">Download PDF</a></li>
   {% endfor %}
   </ul>
   <p class="note">At month end, the whole month's newsletter is saved here as its own edition, and the new month starts again from news number 1.</p>
