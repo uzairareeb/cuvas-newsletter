@@ -1,6 +1,7 @@
-{% extends "base.html" %}
-{% block body %}
-<h1>Admin &mdash; {{ ed.label }}</h1>
+{% extends "admin_base.html" %}
+{% block admin_body %}
+<h1>Admin Dashboard</h1>
+<p class="sub">Welcome back, Administrator &mdash; {{ ed.label }}</p>
 {% if save_err %}<p class="err">
 {% if save_err == "save_failed_check_list" %}Save me masla aaya tha — pehle neeche list check karein, agar news wahan aa gayi hai to dobara add NA karein (warna duplicate ho jayegi). Agar list me nahi hai to dobara try karein.
 {% elif save_err == "missing" %}Title, body aur event date zaroori hain.
@@ -14,81 +15,92 @@
   <div class="kpi"><div class="v">{{ cover_count }}</div><div class="l">Cover images</div></div>
 </div>
 <div class="actions">
-  <a class="btn" href="/edition/{{ ed.id }}/pdf">Download PDF (latest)</a>
+  <a class="btn green" href="/edition/{{ ed.id }}/pdf">Download PDF (latest)</a>
   <a class="btn ghost" href="/">View public page</a>
-  <a class="btn ghost" href="/admin/logout">Sign out</a>
 </div>
 
-<h2>Add news</h2>
-<form method="post" action="/admin/news" enctype="multipart/form-data" class="form">
-  <label>News title * <input name="title" required></label>
-  <label>Body text * <textarea name="body" rows="6" required></textarea></label>
-  <label>Event date * <input type="date" name="event_date" id="edate" required></label>
-  <label>Day of the event <input name="event_day" id="eday" placeholder="Auto-filled from the date"></label>
-  <label>Images (1&ndash;4, 2&ndash;4 recommended, PNG/JPG/WebP, max 5 MB each)
-    <input type="file" name="images" accept="image/png,image/jpeg,image/webp" multiple></label>
-  <p class="note">First image becomes the main image; the rest go into the gallery grid in the PDF. Images are auto-cropped to the template slots.</p>
-  <button class="btn" type="submit">Add news to this edition</button>
-</form>
-<script>
-document.getElementById('edate').addEventListener('change', function(){
-  var d = new Date(this.value + 'T12:00:00');
-  if (!isNaN(d)) document.getElementById('eday').value =
-    d.toLocaleDateString('en-GB', {weekday:'long'});
-});
-</script>
+<section class="section-card" id="add-news">
+  <h2 class="section-title"><span class="dot"></span> Add news</h2>
+  <form method="post" action="/admin/news" enctype="multipart/form-data" class="form">
+    <label>News title * <input name="title" required></label>
+    <label>Body text * <textarea name="body" rows="6" required></textarea></label>
+    <label>Event date * <input type="date" name="event_date" id="edate" required></label>
+    <label>Day of the event <input name="event_day" id="eday" placeholder="Auto-filled from the date"></label>
+    <label>Images (1&ndash;4, 2&ndash;4 recommended, PNG/JPG/WebP, max 5 MB each)
+      <input type="file" name="images" accept="image/png,image/jpeg,image/webp" multiple></label>
+    <p class="note">Images are placed automatically in the PDF and on the web page, rotating through 4 layouts (Classic, Gallery, Side story, Magazine) — news 1, 5, 9... get layout 1, news 2, 6, 10... get layout 2, and so on. Side and last photos are adjusted according to the layout.</p>
+    <button class="btn green" type="submit">Add news to this edition</button>
+  </form>
+  <script>
+  document.getElementById('edate').addEventListener('change', function(){
+    var d = new Date(this.value + 'T12:00:00');
+    if (!isNaN(d)) document.getElementById('eday').value =
+      d.toLocaleDateString('en-GB', {weekday:'long'});
+  });
+  </script>
+</section>
 
-<h2>Cover page images (optional)</h2>
-{% if cover_meta %}
-<div class="img-grid">
-  {% for im in cover_meta %}
-  <a href="/image/cover/{{ im.id }}" target="_blank" rel="noopener"><img src="/image/cover/{{ im.id }}" alt="{{ im.filename }}" loading="lazy"></a>
-  {% endfor %}
-</div>
-{% endif %}
-<form method="post" action="/admin/cover" enctype="multipart/form-data" class="form">
-  <label>Cover images (up to 4, PNG/JPG/WebP, max 5 MB each)
-    <input type="file" name="cover_images" accept="image/png,image/jpeg,image/webp" multiple></label>
-  <p class="note">Ye images PDF ke pehle page (cover) par collage ki shakal me aengi. Upload karne se pehli wali cover images replace ho jayengi. Agar koi cover image na ho to cover par news ki pehli images se collage ban jayega.</p>
-  <button class="btn" type="submit">Save cover images</button>
-</form>
-
-<h2>News in this edition (numbered in this order)</h2>
-{% if not items %}<p class="empty">No news yet.</p>{% endif %}
-{% for it in items %}
-<article class="news">
-  <div class="num">{{ "%02d"|format(it.number) }}</div>
-  <div>
-    <h3>{{ it.title }}</h3>
-    <div class="date">{{ it.event_day }}, {{ it.event_date_display }} &middot; {{ it.images|length }} image(s)</div>
-    {% if it.images %}
-      <a href="/image/news/{{ it.images[0].id }}" target="_blank" rel="noopener"><img class="img-main" src="/image/news/{{ it.images[0].id }}" alt="{{ it.images[0].filename }}" loading="lazy"></a>
-      {% if it.images|length > 1 %}
-      <div class="img-grid">
-        {% for im in it.images[1:] %}
-        <a href="/image/news/{{ im.id }}" target="_blank" rel="noopener"><img src="/image/news/{{ im.id }}" alt="{{ im.filename }}" loading="lazy"></a>
-        {% endfor %}
-      </div>
-      {% endif %}
-    {% endif %}
-    <p>{{ it.body[:400] }}{% if it.body|length > 400 %}...{% endif %}</p>
-    <div class="actions">
-      <a class="btn small ghost" href="/admin/news/{{ it.id }}/edit">Edit</a>
-      <form method="post" action="/admin/news/{{ it.id }}/delete" data-confirm="This news will be deleted from this edition. Later numbers will shift up. Are you sure?" data-confirm-title="Delete this news?"><button class="linkbtn" type="submit">Delete</button></form>
-    </div>
+<section class="section-card" id="cover">
+  <h2 class="section-title"><span class="dot orange"></span> Cover page images (optional)</h2>
+  {% if cover_meta %}
+  <div class="img-grid">
+    {% for im in cover_meta %}
+    <a href="/image/cover/{{ im.id }}" target="_blank" rel="noopener"><img src="/image/cover/{{ im.id }}" alt="{{ im.filename }}" loading="lazy"></a>
+    {% endfor %}
   </div>
-</article>
-{% endfor %}
+  {% endif %}
+  <form method="post" action="/admin/cover" enctype="multipart/form-data" class="form">
+    <label>Cover images (up to 4, PNG/JPG/WebP, max 5 MB each)
+      <input type="file" name="cover_images" accept="image/png,image/jpeg,image/webp" multiple></label>
+    <p class="note">Ye images PDF ke pehle page (cover) par collage ki shakal me aengi. Upload karne se pehli wali cover images replace ho jayengi. Agar koi cover image na ho to cover par news ki pehli images se collage ban jayega.</p>
+    <button class="btn" type="submit">Save cover images</button>
+  </form>
+</section>
 
-<h2>Month</h2>
-<form method="post" action="/admin/close-month" data-confirm="This month will be saved in the archive and a new edition will start. Are you sure?" data-confirm-title="Close this month?">
-  <button class="btn ghost" type="submit">Close month &amp; save in archive</button>
-</form>
-<p class="note">Normally this happens automatically when the calendar month changes. Use this button only to close a month early.</p>
+<section class="section-card" id="news-list">
+  <h2 class="section-title"><span class="dot maroon"></span> News in this edition <span class="pill">{{ items|length }} news</span></h2>
+  {% if not items %}<p class="empty">No news yet.</p>{% endif %}
+  {% for it in items %}
+  <article class="news">
+    <div class="num">{{ "%02d"|format(it.number) }}</div>
+    <div>
+      <h3>{{ it.title }}</h3>
+      <div class="date">{{ it.event_day }}, {{ it.event_date_display }} &middot; {{ it.images|length }} image(s)</div>
+      {% if it.images %}
+        <a href="/image/news/{{ it.images[0].id }}" target="_blank" rel="noopener"><img class="img-main" src="/image/news/{{ it.images[0].id }}" alt="{{ it.images[0].filename }}" loading="lazy"></a>
+        {% if it.images|length > 1 %}
+        <div class="img-grid">
+          {% for im in it.images[1:] %}
+          <a href="/image/news/{{ im.id }}" target="_blank" rel="noopener"><img src="/image/news/{{ im.id }}" alt="{{ im.filename }}" loading="lazy"></a>
+          {% endfor %}
+        </div>
+        {% endif %}
+      {% endif %}
+      <p>{{ it.body[:400] }}{% if it.body|length > 400 %}...{% endif %}</p>
+      <div class="actions">
+        <a class="btn small ghost" href="/admin/news/{{ it.id }}/edit">Edit</a>
+        <form method="post" action="/admin/news/{{ it.id }}/delete" data-confirm="This news will be deleted from this edition. Later numbers will shift up. Are you sure?" data-confirm-title="Delete this news?"><button class="linkbtn" type="submit">Delete</button></form>
+      </div>
+    </div>
+  </article>
+  {% endfor %}
+</section>
 
-<h2>Version history (this edition)</h2>
-<ul>{% for l in logs %}<li>v{{ l.version }} &mdash; {{ l.action }} ({{ l.news_count }} news)</li>{% endfor %}</ul>
+<section class="section-card" id="month">
+  <h2 class="section-title"><span class="dot orange"></span> Month</h2>
+  <form method="post" action="/admin/close-month" data-confirm="This month will be saved in the archive and a new edition will start. Are you sure?" data-confirm-title="Close this month?">
+    <button class="btn ghost" type="submit">Close month &amp; save in archive</button>
+  </form>
+  <p class="note">Normally this happens automatically when the calendar month changes. Use this button only to close a month early.</p>
+</section>
 
-<h2>All editions</h2>
-<ul class="archive">{% for e in editions %}<li>{{ e.label }} &mdash; Volume {{ e.volume }}, Issue {{ e.issue }} ({{ e.status }}, v{{ e.version }}) &middot; <a href="/edition/{{ e.id }}/pdf">PDF</a> &middot; <a href="/edition/{{ e.id }}">View</a></li>{% endfor %}</ul>
+<section class="section-card" id="versions">
+  <h2 class="section-title"><span class="dot"></span> Version history <span class="pill green">Current v{{ ed.version }}</span></h2>
+  <ul class="version-list">{% for l in logs %}<li><span class="pill">v{{ l.version }}</span> {{ l.action }} <span class="note">({{ l.news_count }} news)</span></li>{% endfor %}</ul>
+</section>
+
+<section class="section-card" id="editions">
+  <h2 class="section-title"><span class="dot maroon"></span> All editions</h2>
+  <ul class="archive">{% for e in editions %}<li>{{ e.label }} &mdash; Volume {{ e.volume }}, Issue {{ e.issue }} (<span class="pill {% if e.status == 'open' %}green{% else %}maroon{% endif %}">{{ e.status }}</span>, v{{ e.version }}) &middot; <a href="/edition/{{ e.id }}/pdf">PDF</a> &middot; <a href="/edition/{{ e.id }}">View</a></li>{% endfor %}</ul>
+</section>
 {% endblock %}

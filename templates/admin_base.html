@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block body %}
+<div class="admin-layout">
+  <aside class="sidebar">
+    <div class="logo-band"><img src="/brand/cuvas-logo.png" alt="CUVAS logo"></div>
+    <div class="profile">
+      <div class="avatar">A</div>
+      <div>
+        <div class="pname">Administrator</div>
+        <div class="prole">Newsletter Admin</div>
+      </div>
+    </div>
+    <nav class="side-nav">
+      <a href="/admin">Dashboard</a>
+      <a href="/admin#add-news">Add news</a>
+      <a href="/admin#cover">Cover images</a>
+      <a href="/admin#news-list">News list</a>
+      <a href="/admin#month">Close month</a>
+      <a href="/admin#versions">Version history</a>
+      <a href="/admin#editions">All editions</a>
+      <a href="/" class="green">View public page</a>
+    </nav>
+    <div class="side-foot">
+      <a href="/admin/logout">Sign out</a>
+      {% if ed %}<p style="font-size:13px;opacity:.85">{{ ed.volume_line }}<br>Version {{ ed.version }}</p>{% endif %}
+    </div>
+  </aside>
+  <div class="admin-content">{% block admin_body %}{% endblock %}</div>
+</div>
+{% endblock %}

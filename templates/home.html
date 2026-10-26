@@ -1,47 +1,83 @@
 {% extends "base.html" %}
 {% block body %}
 <section class="hero">
-  <div class="pill">Volume {{ ed.volume }} &bull; Issue {{ ed.issue }} &bull; {{ ed.label }}</div>
+  <div class="pill green">Volume {{ ed.volume }} &bull; Issue {{ ed.issue }} &bull; {{ ed.label }}</div>
   <h1>Newsletter &mdash; {{ ed.label }}</h1>
   <p class="sub">News and Highlights from Across the University</p>
-  <p>Version {{ ed.version }} &middot; {{ items|length }} news item(s) in this edition</p>
+  <p><span class="pill">Version {{ ed.version }}</span> &nbsp; <span class="pill maroon">{{ items|length }} news item(s)</span></p>
   <div class="actions">
-    <a class="btn" href="/edition/{{ ed.id }}/pdf">Download PDF (latest version)</a>
+    <a class="btn green" href="/edition/{{ ed.id }}/pdf">Download PDF (latest version)</a>
     {% if items %}<a class="btn ghost" href="#news">Read below</a>{% endif %}
   </div>
 </section>
 
-<h2 id="news">In this edition</h2>
+<div class="section-head" id="news"><h2>In this edition</h2><span class="pill orange">{{ items|length }} news</span></div>
 {% if not items %}
 <p class="empty">No news has been added to this edition yet. Admin can add the first news from the Admin page.</p>
 {% endif %}
 {% for it in items %}
+{% set lay = (it.number - 1) % 4 %}
 <article class="news">
   <div class="num">{{ "%02d"|format(it.number) }}</div>
   <div>
+    <span class="layout-tag">Layout {{ lay + 1 }} &mdash; {% if lay == 0 %}Classic{% elif lay == 1 %}Gallery{% elif lay == 2 %}Side story{% else %}Magazine{% endif %}</span>
     <h3>{{ it.title }}</h3>
     <div class="date">{{ it.event_day }}, {{ it.event_date_display }}</div>
     {% if it.images %}
-      <a href="/image/news/{{ it.images[0].id }}" target="_blank" rel="noopener"><img class="img-main" src="/image/news/{{ it.images[0].id }}" alt="{{ it.images[0].filename }}" loading="lazy"></a>
-      {% if it.images|length > 1 %}
-      <div class="img-grid">
-        {% for im in it.images[1:] %}
-        <a href="/image/news/{{ im.id }}" target="_blank" rel="noopener"><img src="/image/news/{{ im.id }}" alt="{{ im.filename }}" loading="lazy"></a>
-        {% endfor %}
-      </div>
+      {% if lay == 0 %}
+        <a href="/image/news/{{ it.images[0].id }}" target="_blank" rel="noopener"><img class="img-main" src="/image/news/{{ it.images[0].id }}" alt="{{ it.images[0].filename }}" loading="lazy"></a>
+        {% if it.images|length > 1 %}
+        <div class="img-grid">
+          {% for im in it.images[1:] %}
+          <a href="/image/news/{{ im.id }}" target="_blank" rel="noopener"><img src="/image/news/{{ im.id }}" alt="{{ im.filename }}" loading="lazy"></a>
+          {% endfor %}
+        </div>
+        {% endif %}
+      {% elif lay == 1 %}
+        <p>{{ it.body }}</p>
+        <div class="img-grid{% if it.images|length == 2 %} two{% endif %}">
+          {% for im in it.images %}
+          <a href="/image/news/{{ im.id }}" target="_blank" rel="noopener"><img src="/image/news/{{ im.id }}" alt="{{ im.filename }}" loading="lazy"></a>
+          {% endfor %}
+        </div>
+      {% elif lay == 2 %}
+        <div class="side-wrap">
+          <div class="side-text"><p>{{ it.body }}</p></div>
+          <a href="/image/news/{{ it.images[0].id }}" target="_blank" rel="noopener"><img class="side-img" src="/image/news/{{ it.images[0].id }}" alt="{{ it.images[0].filename }}" loading="lazy"></a>
+        </div>
+        {% if it.images|length > 1 %}
+        <div class="img-grid">
+          {% for im in it.images[1:] %}
+          <a href="/image/news/{{ im.id }}" target="_blank" rel="noopener"><img src="/image/news/{{ im.id }}" alt="{{ im.filename }}" loading="lazy"></a>
+          {% endfor %}
+        </div>
+        {% endif %}
+      {% else %}
+        <a href="/image/news/{{ it.images[0].id }}" target="_blank" rel="noopener"><img class="img-main" src="/image/news/{{ it.images[0].id }}" alt="{{ it.images[0].filename }}" loading="lazy"></a>
+        <p>{{ it.body }}</p>
+        {% if it.images|length > 1 %}
+        <div class="img-grid">
+          {% for im in it.images[1:-1] %}
+          <a href="/image/news/{{ im.id }}" target="_blank" rel="noopener"><img src="/image/news/{{ im.id }}" alt="{{ im.filename }}" loading="lazy"></a>
+          {% endfor %}
+        </div>
+        <a href="/image/news/{{ it.images[-1].id }}" target="_blank" rel="noopener"><img class="img-main" src="/image/news/{{ it.images[-1].id }}" alt="{{ it.images[-1].filename }}" loading="lazy"></a>
+        {% endif %}
       {% endif %}
     {% endif %}
-    <p>{{ it.body }}</p>
+    {% if lay != 1 and lay != 2 %}<p>{{ it.body }}</p>{% endif %}
   </div>
 </article>
 {% endfor %}
 
-<h2>Monthly archive</h2>
-<ul class="archive">
-{% for e in editions %}
-  <li><a href="/edition/{{ e.id }}">{{ e.label }}</a> &mdash; Volume {{ e.volume }}, Issue {{ e.issue }}
-  ({{ e.status }}, v{{ e.version }}) &middot; <a href="/edition/{{ e.id }}/pdf">Download PDF</a></li>
-{% endfor %}
-</ul>
-<p class="note">At month end, the whole month's newsletter is saved here as its own edition, and the new month starts again from news number 1.</p>
+<section class="section-card">
+  <h2 class="section-title"><span class="dot orange"></span> Monthly archive</h2>
+  <ul class="archive">
+  {% for e in editions %}
+    <li><a href="/edition/{{ e.id }}">{{ e.label }}</a> &mdash; Volume {{ e.volume }}, Issue {{ e.issue }}
+    (<span class="pill {% if e.status == 'open' %}green{% else %}maroon{% endif %}">{{ e.status }}</span>, v{{ e.version }}) &middot; <a href="/edition/{{ e.id }}/pdf">Download PDF</a></li>
+  {% endfor %}
+  </ul>
+  <p class="note">At month end, the whole month's newsletter is saved here as its own edition, and the new month starts again from news number 1.</p>
+</section>
 {% endblock %}

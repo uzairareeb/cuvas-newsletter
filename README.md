@@ -41,6 +41,20 @@ here are CUVAS's own: official CUVAS logo on top, CUVAS indigo
   photos shown properly on the public, edition and admin pages
   via `/image/news/<id>` and `/image/cover/<id>` (click a photo to
   open it full-size), instead of filename text only.
+- **Theme + layouts (v4, 2026-10-26):** indigo stays, gold is replaced
+  by academic green `#15803d` (dates in maroon, orange only as a
+  small highlight) on web and in the PDF. **4 image layouts rotate
+  per news** in both the PDF and the web pages: 1 Classic
+  (interleaved, side photo, last at end), 2 Gallery (text first,
+  then a grid), 3 Side story (first paragraph beside the first
+  photo, rest as a strip), 4 Magazine (hero, half text, strip,
+  rest, last large) — news 5 reuses layout 1, news 6 layout 2, and
+  so on. Admin now has a MY CUVAS-style left sidebar (logo band,
+  Administrator profile with avatar + Sign out, grouped links) and
+  every admin block is its own highlighted section card (Add news,
+  Cover, News list, Month, Version history, All editions); public
+  news numbers, version and archive are likewise separate
+  highlighted pills/sections.
 - **Save robustness:** web pages and the version counter never load
   photo blobs (filenames/counts only); only PDF generation loads
   them. A failed Postgres query rolls back instead of poisoning

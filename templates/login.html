@@ -10,11 +10,17 @@
     <h1>WELCOME</h1>
     <h2>CUVAS Newsletter</h2>
     <p>News and Highlights from Across the University — add news with pictures, and every month becomes a new, beautifully designed newsletter PDF.</p>
-    {% if ed %}<p><span class="pill gold">{{ ed.volume_line }}</span></p>{% endif %}
-    <p style="font-size:14px">Add news &nbsp;•&nbsp; Numbered monthly edition &nbsp;•&nbsp; PDF download &nbsp;•&nbsp; Monthly archive</p>
+    {% if ed %}<p><span class="pill green">{{ ed.volume_line }}</span></p>{% endif %}
+    <ul class="feature-list">
+      <li><span class="tick">✓</span> Add news with 2–4 photos</li>
+      <li><span class="tick">✓</span> Numbered monthly edition, in order</li>
+      <li><span class="tick">✓</span> New downloadable PDF every time</li>
+      <li><span class="tick">✓</span> Monthly archive, saved forever</li>
+    </ul>
   </section>
   <section class="login-right">
     <div class="login-card">
+      <div class="login-eyebrow">Admin Portal</div>
       <h2>Sign in</h2>
       <p class="sub">Admin access only. Sign in to add news and manage editions.</p>
       {% if err %}<p class="err">{{ err }}</p>{% endif %}
@@ -27,9 +33,9 @@
           </span>
         </label>
         <label class="remember"><input type="checkbox" name="remember_me" value="1"> Remember me (30 days)</label>
-        <button class="btn" type="submit">Sign in</button>
+        <button class="btn green" type="submit">Sign in</button>
       </form>
-      <p class="note">Default demo login: admin / Admin@123. For production, set ADMIN_PASSWORD in Vercel.</p>
+      <p class="note">Default demo login: admin / Admin@123. For production, set ADMIN_PASSWORD in Vercel. This is a single admin account — no sign-up or password-reset flow exists.</p>
       <a class="back-link" href="/">&larr; Back to newsletter</a>
     </div>
   </section>

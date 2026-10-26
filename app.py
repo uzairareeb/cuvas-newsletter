@@ -3,8 +3,11 @@
 One document per month. News is appended below previous news in the
 same monthly edition, numbered sequentially in addition order.
 At month end the edition is archived and the new month starts at 1.
-PDF is generated with ReportLab in CUVAS indigo + gold branding,
+PDF is generated with ReportLab in CUVAS indigo + academic green
+branding (maroon for dates, orange only as a small highlight),
 official CUVAS logo on top, Volume / Issue / Month on the cover.
+News images rotate through 4 layouts, one per news in order,
+cycling back to layout 1 after layout 4.
 DB: Postgres when DATABASE_URL is set (Vercel + Neon), else SQLite.
 Images are stored in the DB (BYTEA / BLOB), never on the filesystem,
 so they survive the same way on both backends.
@@ -28,7 +31,12 @@ APP_NAME = "CUVAS Newsletter"
 UNI_NAME = "Cholistan University of Veterinary and Animal Sciences, Bahawalpur"
 UNI_SHORT = "CUVAS"
 INDIGO = "#2e3192"
-GOLD = "#c9a227"
+GREEN = "#15803d"
+GREEN_BRIGHT = "#3fb877"
+MAROON = "#8b1e2d"
+ORANGE = "#ea580c"
+# Kept for any old reference; the live theme now uses GREEN.
+GOLD = GREEN
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "cuvas-newsletter-dev-key-change-me")
@@ -578,7 +586,9 @@ def build_pdf(ed, items, covers=None):
 
     indigo = colors.HexColor(INDIGO)
     dark = colors.HexColor("#252775")
-    gold = colors.HexColor(GOLD)
+    gold = colors.HexColor(GREEN)
+    green_bright = colors.HexColor(GREEN_BRIGHT)
+    maroon = colors.HexColor(MAROON)
     light = colors.HexColor("#eef0fa")
     grey = colors.HexColor("#444444")
     page_w, page_h = A4
@@ -589,13 +599,13 @@ def build_pdf(ed, items, covers=None):
         textColor=colors.white)
     s_num_banner = ParagraphStyle(
         "nb", fontName="Helvetica-Bold", fontSize=20, leading=20,
-        textColor=gold, alignment=TA_CENTER)
+        textColor=green_bright, alignment=TA_CENTER)
     s_body = ParagraphStyle("b", fontName="Helvetica", fontSize=10,
                             leading=14.5, alignment=TA_JUSTIFY,
                             textColor=colors.HexColor("#222222"),
                             spaceAfter=2.5 * mm)
     s_date = ParagraphStyle("d", fontName="Helvetica-Bold", fontSize=9,
-                            leading=12, textColor=gold, spaceAfter=2 * mm)
+                            leading=12, textColor=maroon, spaceAfter=2 * mm)
     s_cover_uni = ParagraphStyle("cu", fontName="Helvetica-Bold",
                                  fontSize=11, leading=14,
                                  alignment=TA_CENTER, textColor=indigo)
@@ -816,23 +826,74 @@ def build_pdf(ed, items, covers=None):
         story.append(Paragraph(date_line, s_date))
         paras = [p.strip() for p in it["body"].split("\n") if p.strip()]
         imgs = it["images"]
-        if not imgs:
-            for para in paras:
-                story.append(Paragraph(para.replace("&", "&amp;"), s_body))
-        else:
-            # Image 1: large, at the start (after the title).
+        # 4 image layouts, rotating per news: 1st news -> layout 1,
+        # 2nd -> layout 2, 3rd -> layout 3, 4th -> layout 4,
+        # 5th -> layout 1 again, and so on.
+        layout = (it["number"] - 1) % 4 + 1
+
+        def _para(txt):
+            return Paragraph(txt.replace("&", "&amp;"), s_body)
+
+        def _add_full(im):
             try:
-                story.append(full_image(imgs[0]["data"]))
+                story.append(full_image(im["data"]))
                 story.append(Spacer(1, 2 * mm))
             except Exception:
                 pass
+
+        def _add_grid(grid_imgs):
+            if not grid_imgs:
+                return
+            try:
+                if len(grid_imgs) == 1:
+                    _add_full(grid_imgs[0])
+                elif len(grid_imgs) == 2:
+                    cells = [small_image(c["data"], 86)
+                             for c in grid_imgs]
+                    tbl = Table([cells], colWidths=[86 * mm, 86 * mm])
+                    tbl.setStyle(TableStyle([
+                        ("LEFTPADDING", (0, 0), (-1, -1), 2),
+                        ("RIGHTPADDING", (0, 0), (-1, -1), 2)]))
+                    story.append(tbl)
+                    story.append(Spacer(1, 2 * mm))
+                elif len(grid_imgs) == 3:
+                    _add_full(grid_imgs[0])
+                    cells = [small_image(c["data"], 86)
+                             for c in grid_imgs[1:]]
+                    tbl = Table([cells], colWidths=[86 * mm, 86 * mm])
+                    tbl.setStyle(TableStyle([
+                        ("LEFTPADDING", (0, 0), (-1, -1), 2),
+                        ("RIGHTPADDING", (0, 0), (-1, -1), 2)]))
+                    story.append(tbl)
+                    story.append(Spacer(1, 2 * mm))
+                else:
+                    rows = []
+                    for k in (0, 2):
+                        rows.append([small_image(c["data"], 86)
+                                     for c in grid_imgs[k:k + 2]])
+                    tbl = Table(rows, colWidths=[86 * mm, 86 * mm])
+                    tbl.setStyle(TableStyle([
+                        ("LEFTPADDING", (0, 0), (-1, -1), 2),
+                        ("RIGHTPADDING", (0, 0), (-1, -1), 2),
+                        ("TOPPADDING", (0, 0), (-1, -1), 2),
+                        ("BOTTOMPADDING", (0, 0), (-1, -1), 2)]))
+                    story.append(tbl)
+                    story.append(Spacer(1, 2 * mm))
+            except Exception:
+                pass
+
+        if not imgs:
+            for para in paras:
+                story.append(_para(para))
+        elif layout == 1:
+            # Layout 1 — Classic interleaved (v2 behaviour): first
+            # image large at the start, one side photo mid-text,
+            # last image at the end.
+            _add_full(imgs[0])
             remaining = imgs[1:]
             if remaining:
                 end_img = remaining[-1]
                 middles = remaining[:-1]
-                # Insertion points for middle images, spread through
-                # the text (not at the very end — the last image goes
-                # at the end).
                 insert_at = {}
                 for j, im in enumerate(middles):
                     pos = int(len(paras) * (j + 1) / (len(middles) + 1))
@@ -840,26 +901,19 @@ def build_pdf(ed, items, covers=None):
                         pos = len(paras) - 1
                     if pos < 0:
                         pos = 0
-                    # Avoid two images on the same paragraph.
                     while pos in insert_at and pos < len(paras) - 1:
                         pos += 1
                     insert_at[pos] = im
                 side_used = False
                 i = 0
                 while i < len(paras):
-                    para = paras[i]
-                    story.append(Paragraph(para.replace("&", "&amp;"),
-                                           s_body))
+                    story.append(_para(paras[i]))
                     if i in insert_at:
                         im = insert_at[i]
                         try:
                             if not side_used and i + 1 < len(paras):
-                                # Side placement (like the reference):
-                                # next paragraph on the left, photo
-                                # on the right.
                                 side = Table(
-                                    [[Paragraph(paras[i + 1].replace(
-                                        "&", "&amp;"), s_body),
+                                    [[_para(paras[i + 1]),
                                       small_image(im["data"], 58)]],
                                     colWidths=[112 * mm, 62 * mm])
                                 side.setStyle(TableStyle([
@@ -870,18 +924,60 @@ def build_pdf(ed, items, covers=None):
                                 story.append(side)
                                 story.append(Spacer(1, 1 * mm))
                                 side_used = True
-                                i += 1  # next paragraph already used
+                                i += 1
                             else:
-                                story.append(full_image(im["data"]))
-                                story.append(Spacer(1, 2 * mm))
+                                _add_full(im)
                         except Exception:
                             pass
                     i += 1
-                # Last image: at the end.
+                _add_full(end_img)
+        elif layout == 2:
+            # Layout 2 — Gallery: full text first, then all images
+            # together as a grid at the end.
+            for para in paras:
+                story.append(_para(para))
+            _add_grid(imgs)
+        elif layout == 3:
+            # Layout 3 — Side story: first paragraph beside the first
+            # photo, rest of the text below, remaining photos as a
+            # small strip at the end.
+            if paras:
                 try:
-                    story.append(full_image(end_img["data"]))
+                    side = Table(
+                        [[_para(paras[0]), small_image(imgs[0]["data"], 58)]],
+                        colWidths=[112 * mm, 62 * mm])
+                    side.setStyle(TableStyle([
+                        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                        ("LEFTPADDING", (0, 0), (-1, -1), 2),
+                        ("RIGHTPADDING", (0, 0), (-1, -1), 2),
+                    ]))
+                    story.append(side)
+                    story.append(Spacer(1, 2 * mm))
                 except Exception:
-                    pass
+                    story.append(_para(paras[0]))
+                for para in paras[1:]:
+                    story.append(_para(para))
+            _add_grid(imgs[1:])
+        else:
+            # Layout 4 — Magazine: hero photo first, half the text,
+            # middle photos as a strip, rest of the text, last photo
+            # large at the end.
+            _add_full(imgs[0])
+            rest = imgs[1:]
+            if rest:
+                last_img = rest[-1]
+                middles = rest[:-1]
+            else:
+                last_img = None
+                middles = []
+            half = (len(paras) + 1) // 2
+            for para in paras[:half]:
+                story.append(_para(para))
+            _add_grid(middles)
+            for para in paras[half:]:
+                story.append(_para(para))
+            if last_img is not None:
+                _add_full(last_img)
         story.append(Spacer(1, 3 * mm))
         story.append(HRFlowable(width="100%", thickness=0.6, color=light,
                                 spaceAfter=5 * mm, spaceBefore=1 * mm))
