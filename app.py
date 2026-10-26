@@ -36,8 +36,17 @@ app.config["MAX_CONTENT_LENGTH"] = 30 * 1024 * 1024  # 30 MB total per form
 
 DATABASE_URL = os.environ.get("DATABASE_URL", "")
 IS_PG = bool(DATABASE_URL)
-LOCAL_DB = os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                         "cuvas_newsletter.db")
+# Vercel's filesystem is read-only except /tmp, so a SQLite file in the
+# project folder fails there with "unable to open database file" (the
+# 500 seen on the first Vercel deploy). On Vercel without Postgres,
+# SQLite lives in /tmp as a demo fallback only — it is NOT permanent.
+# Permanent storage on Vercel is Postgres via Vercel Storage -> Neon,
+# which sets DATABASE_URL (same pattern as MY CUVAS).
+if os.environ.get("VERCEL"):
+    LOCAL_DB = "/tmp/cuvas_newsletter.db"
+else:
+    LOCAL_DB = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                             "cuvas_newsletter.db")
 ADMIN_USER = "admin"
 ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "Admin@123")
 MAX_IMAGE_BYTES = 5 * 1024 * 1024
