@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}CUVAS Newsletter{% endblock %}</title>
+<link rel="stylesheet" href="/static/style.css"></head>
+<body>
+<header class="top">
+  <img src="/brand/cuvas-logo.png" alt="CUVAS logo" class="logo">
+  <div>
+    <div class="uni">Cholistan University of Veterinary and Animal Sciences, Bahawalpur</div>
+    <div class="brand">CUVAS Newsletter</div>
+  </div>
+  <nav>
+    <a href="/">Current edition</a>
+    <a href="/admin">Admin</a>
+  </nav>
+</header>
+<main>{% block body %}{% endblock %}</main>
+<footer class="foot">CUVAS Newsletter &middot; Cholistan University of Veterinary and Animal Sciences, Bahawalpur</footer>
+</body></html>

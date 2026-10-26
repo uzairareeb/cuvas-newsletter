@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block body %}
+<section class="hero">
+  <div class="pill">Volume {{ ed.volume }} &bull; Issue {{ ed.issue }} &bull; {{ ed.label }} &bull; {{ ed.status }}</div>
+  <h1>Newsletter &mdash; {{ ed.label }}</h1>
+  <p>Version {{ ed.version }} &middot; {{ items|length }} news item(s)</p>
+  <a class="btn" href="/edition/{{ ed.id }}/pdf">Download PDF</a>
+  <a class="btn ghost" href="/">Back to current edition</a>
+</section>
+{% for it in items %}
+<article class="news">
+  <div class="num">{{ "%02d"|format(it.number) }}</div>
+  <div>
+    <h3>{{ it.title }}</h3>
+    <div class="date">{{ it.event_day }}, {{ it.event_date }}</div>
+    <p>{{ it.body }}</p>
+  </div>
+</article>
+{% endfor %}
+{% if not items %}<p class="empty">This edition has no news yet.</p>{% endif %}
+{% endblock %}

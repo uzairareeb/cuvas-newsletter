@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block body %}
+<h1>Admin &mdash; {{ ed.label }}</h1>
+<p class="pill inline">Volume {{ ed.volume }} &bull; Issue {{ ed.issue }} &bull; Version {{ ed.version }} &bull; {{ items|length }} news</p>
+<p><a class="btn" href="/edition/{{ ed.id }}/pdf">Download PDF (latest)</a>
+<a class="btn ghost" href="/admin/logout">Sign out</a></p>
+
+<h2>Add news</h2>
+<form method="post" action="/admin/news" enctype="multipart/form-data" class="form">
+  <label>News title * <input name="title" required></label>
+  <label>Body text * <textarea name="body" rows="6" required></textarea></label>
+  <label>Event date * <input type="date" name="event_date" id="edate" required></label>
+  <label>Day of the event <input name="event_day" id="eday" placeholder="Auto-filled from the date"></label>
+  <label>Images (1&ndash;4, 2&ndash;4 recommended, PNG/JPG/WebP, max 5 MB each)
+    <input type="file" name="images" accept="image/png,image/jpeg,image/webp" multiple></label>
+  <p class="note">First image becomes the main image; the rest go into the gallery grid in the PDF. Images are auto-cropped to the template slots.</p>
+  <button class="btn" type="submit">Add news to this edition</button>
+</form>
+<script>
+document.getElementById('edate').addEventListener('change', function(){
+  var d = new Date(this.value + 'T12:00:00');
+  if (!isNaN(d)) document.getElementById('eday').value =
+    d.toLocaleDateString('en-GB', {weekday:'long'});
+});
+</script>
+
+<h2>News in this edition (numbered in this order)</h2>
+{% if not items %}<p class="empty">No news yet.</p>{% endif %}
+{% for it in items %}
+<article class="news">
+  <div class="num">{{ "%02d"|format(it.number) }}</div>
+  <div>
+    <h3>{{ it.title }}</h3>
+    <div class="date">{{ it.event_day }}, {{ it.event_date }} &middot; {{ it.images|length }} image(s)</div>
+    <p>{{ it.body[:300] }}{% if it.body|length > 300 %}...{% endif %}</p>
+    <p><a href="/admin/news/{{ it.id }}/edit">Edit</a>
+    <form method="post" action="/admin/news/{{ it.id }}/delete" style="display:inline" onsubmit="return confirm('Delete this news? Later numbers will shift up.');"><button class="linkbtn" type="submit">Delete</button></form></p>
+  </div>
+</article>
+{% endfor %}
+
+<h2>Month</h2>
+<form method="post" action="/admin/close-month" onsubmit="return confirm('Close {{ ed.label }}? It will be saved in the archive and a new edition will start.');">
+  <button class="btn ghost" type="submit">Close month &amp; save in archive</button>
+</form>
+<p class="note">Normally this happens automatically when the calendar month changes. Use this button only to close a month early.</p>
+
+<h2>Version history (this edition)</h2>
+<ul>{% for l in logs %}<li>v{{ l.version }} &mdash; {{ l.action }} ({{ l.news_count }} news)</li>{% endfor %}</ul>
+
+<h2>All editions</h2>
+<ul class="archive">{% for e in editions %}<li>{{ e.label }} &mdash; Volume {{ e.volume }}, Issue {{ e.issue }} ({{ e.status }}, v{{ e.version }}) &middot; <a href="/edition/{{ e.id }}/pdf">PDF</a></li>{% endfor %}</ul>
+{% endblock %}

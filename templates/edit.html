@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block body %}
+<h1>Edit news &mdash; {{ ed.label }}</h1>
+<form method="post" class="form">
+  <label>News title * <input name="title" value="{{ item.title }}" required></label>
+  <label>Body text * <textarea name="body" rows="6" required>{{ item.body }}</textarea></label>
+  <label>Event date * <input type="date" name="event_date" value="{{ item.event_date }}" required></label>
+  <label>Day of the event <input name="event_day" value="{{ item.event_day }}"></label>
+  <button class="btn" type="submit">Save changes</button>
+  <a class="btn ghost" href="/admin">Cancel</a>
+</form>
+<p class="note">Images cannot be replaced in this first version; delete and re-add the news to change its images. Its number stays in place if you only edit text.</p>
+{% endblock %}
